@@ -1,0 +1,13 @@
+# MoltClaw Linux fail2ban SSH jail
+# Protects SSH against brute-force attacks
+# Works alongside nftables rate-limiting as defense-in-depth
+
+[sshd]
+enabled  = true
+port     = ssh
+filter   = sshd
+backend  = systemd
+maxretry = 5
+findtime = 600
+bantime  = 3600
+action   = nftables-multiport[name=sshd, port="ssh", protocol=tcp]

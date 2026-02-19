@@ -78,22 +78,25 @@ fi
 # 5) Firewall (best-effort)
 if command -v nft >/dev/null 2>&1; then
   if nft list ruleset >/dev/null 2>&1; then
-    pass "nftables present"
+    # Verify deny-default policy is loaded
+    if nft list chain inet filter input 2>/dev/null | grep -q 'policy drop'; then
+      pass "nftables loaded with deny-default input policy"
+    else
+      fail "nftables loaded but input policy is not drop"
+    fi
   elif [ "$CI_MODE" = "1" ]; then
-    grep -Eqi '^nftables$' "$ROOT_DIR/packages/security-defaults.txt" || fail "security package manifest missing nftables"
-    pass "firewall policy validated from package manifest"
+    NFT_OVERLAY="$ROOT_DIR/overlays/etc/network/nftables.conf"
+    grep -Eqi 'policy\s+drop' "$NFT_OVERLAY" || fail "nftables overlay missing deny-default policy"
+    grep -Eqi 'dport\s+22' "$NFT_OVERLAY" || fail "nftables overlay missing SSH allow rule"
+    pass "firewall policy validated from overlay (deny-default + SSH)"
   else
     fail "nftables not readable"
   fi
-elif command -v ufw >/dev/null 2>&1; then
-  ufw status | grep -qi "Status: active" || fail "ufw not active"
-  pass "ufw active"
-elif command -v firewall-cmd >/dev/null 2>&1; then
-  firewall-cmd --state | grep -qi running || fail "firewalld not running"
-  pass "firewalld running"
 elif [ "$CI_MODE" = "1" ]; then
-  grep -Eqi '^nftables$' "$ROOT_DIR/packages/security-defaults.txt" || fail "security package manifest missing nftables"
-  pass "firewall policy validated from package manifest"
+  NFT_OVERLAY="$ROOT_DIR/overlays/etc/network/nftables.conf"
+  [ -f "$NFT_OVERLAY" ] || fail "nftables overlay missing"
+  grep -Eqi 'policy\s+drop' "$NFT_OVERLAY" || fail "nftables overlay missing deny-default policy"
+  pass "firewall policy validated from overlay"
 else
   fail "no supported firewall tool detected"
 fi
@@ -114,16 +117,51 @@ if [ -f /etc/ssh/sshd_config ] || [ -d /etc/ssh/sshd_config.d ]; then
   cat /etc/ssh/sshd_config /etc/ssh/sshd_config.d/*.conf 2>/dev/null > "$SSHD_COMBINED" || true
   grep -Eqi '^\s*PermitRootLogin\s+no' "$SSHD_COMBINED" || fail "PermitRootLogin not set to no"
   grep -Eqi '^\s*PasswordAuthentication\s+no' "$SSHD_COMBINED" || fail "PasswordAuthentication not set to no"
+  # Verify modern cipher suite is set
+  grep -Eqi '^\s*Ciphers\s' "$SSHD_COMBINED" || fail "SSH Ciphers not explicitly restricted"
+  grep -Eqi '^\s*KexAlgorithms\s' "$SSHD_COMBINED" || fail "SSH KexAlgorithms not explicitly restricted"
+  grep -Eqi '^\s*MACs\s' "$SSHD_COMBINED" || fail "SSH MACs not explicitly restricted"
   rm -f "$SSHD_COMBINED"
-  pass "SSH hardening checks"
+  pass "SSH hardening checks (auth + ciphers)"
 elif [ "$CI_MODE" = "1" ]; then
   SSH_OVERLAY="$ROOT_DIR/overlays/etc/security/sshd_config.d/10-moltclaw-hardening.conf"
   grep -Eqi '^\s*PermitRootLogin\s+no' "$SSH_OVERLAY" || fail "overlay ssh posture missing PermitRootLogin no"
   grep -Eqi '^\s*PasswordAuthentication\s+no' "$SSH_OVERLAY" || fail "overlay ssh posture missing PasswordAuthentication no"
-  pass "SSH hardening validated from overlay"
+  grep -Eqi '^\s*Ciphers\s' "$SSH_OVERLAY" || fail "overlay ssh posture missing Ciphers restriction"
+  grep -Eqi '^\s*KexAlgorithms\s' "$SSH_OVERLAY" || fail "overlay ssh posture missing KexAlgorithms restriction"
+  grep -Eqi '^\s*MACs\s' "$SSH_OVERLAY" || fail "overlay ssh posture missing MACs restriction"
+  pass "SSH hardening validated from overlay (auth + ciphers)"
 fi
 
-# 7) Update/verification path
+# 7) Fail2ban
+if command -v fail2ban-client >/dev/null 2>&1; then
+  if fail2ban-client status sshd >/dev/null 2>&1; then
+    pass "fail2ban sshd jail active"
+  else
+    fail "fail2ban installed but sshd jail not active"
+  fi
+elif [ "$CI_MODE" = "1" ]; then
+  F2B_OVERLAY="$ROOT_DIR/overlays/etc/security/fail2ban/jail.local"
+  [ -f "$F2B_OVERLAY" ] || fail "fail2ban jail.local overlay missing"
+  grep -Eqi '^\s*enabled\s*=\s*true' "$F2B_OVERLAY" || fail "fail2ban sshd jail not enabled in overlay"
+  pass "fail2ban policy validated from overlay"
+fi
+
+# 8) Exposure audit — check for unexpected listening ports
+if command -v ss >/dev/null 2>&1; then
+  # List all TCP listeners excluding loopback-only services
+  UNEXPECTED="$(ss -tlnH 2>/dev/null | awk '{print $4}' | grep -v '127\.0\.0\.1' | grep -v '\[::1\]' | grep -v ':22$' || true)"
+  if [ -n "$UNEXPECTED" ]; then
+    note "Unexpected non-loopback listeners detected: $UNEXPECTED"
+    # Not a hard fail — the operator may have intentionally exposed services
+  else
+    pass "no unexpected public listeners (only SSH:22)"
+  fi
+elif [ "$CI_MODE" = "1" ]; then
+  note "ss not available in CI; port exposure check skipped"
+fi
+
+# 9) Update/verification path
 if command -v openclaw >/dev/null 2>&1; then
   openclaw --version >/dev/null 2>&1 || fail "openclaw version check failed"
 

@@ -13,3 +13,13 @@
 # Privilege escalation tools
 -w /usr/bin/sudo -p x -k priv_esc
 -w /usr/bin/su -p x -k priv_esc
+
+# Firewall config changes
+-w /etc/nftables.conf -p wa -k firewall
+
+# Network config changes
+-w /etc/NetworkManager/ -p wa -k network
+-w /etc/systemd/resolved.conf -p wa -k dns
+
+# Fail2ban config changes
+-w /etc/fail2ban/ -p wa -k fail2ban

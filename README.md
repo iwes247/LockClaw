@@ -36,10 +36,14 @@ Create a Linux flavor named `MoltClawLinux` based on OpenClaw with security and 
 	- `sshd_config.d/10-moltclaw-hardening.conf`
 	- `audit/audit.rules`
 	- `logging/journald.conf`
+	- `fail2ban/jail.local`
+	- `logrotate.d/sudo`
+	- `rsyslog.d/50-moltclaw.conf`
 - `overlays/etc/network/`
 	- `NetworkManager.conf`
 	- `resolved.conf`
 	- `timesyncd.conf`
+	- `nftables.conf`
 - `packages/`
 	- `security-defaults.txt`
 	- `network-defaults.txt`
@@ -85,17 +89,21 @@ Use the pre-wired stubs under `image-builder/` to stage that transition.
 
 ## Security posture
 
-- Kernel hardening via `overlays/etc/security/sysctl.conf`
-- Account/login policy via `overlays/etc/security/limits.conf` and `overlays/etc/security/login.defs`
+- Kernel hardening via `overlays/etc/security/sysctl.conf` (rp_filter, syncookies, ICMP restrictions, ptrace, BPF)
+- Account/login policy via `overlays/etc/security/limits.conf` and `overlays/etc/security/login.defs` (yescrypt hashing)
 - Sudo hardening via `overlays/etc/security/sudoers.d/10-moltclaw-hardening`
-- SSH hardening via `overlays/etc/security/sshd_config.d/10-moltclaw-hardening.conf`
-- Audit and logging via `overlays/etc/security/audit/audit.rules` and `overlays/etc/security/logging/journald.conf`
+- SSH hardening via `overlays/etc/security/sshd_config.d/10-moltclaw-hardening.conf` (no root, no password, modern ciphers only)
+- Firewall: deny-by-default nftables ruleset via `overlays/etc/network/nftables.conf` (allows SSH:22 rate-limited, loopback, established)
+- Brute-force protection via `overlays/etc/security/fail2ban/jail.local` (sshd jail)
+- Audit and logging via `overlays/etc/security/audit/audit.rules`, `overlays/etc/security/logging/journald.conf`, and `overlays/etc/security/rsyslog.d/50-moltclaw.conf`
+- Log rotation for sudo audit log via `overlays/etc/security/logrotate.d/sudo`
 
 ## Networking posture
 
 - Network manager baseline: `overlays/etc/network/NetworkManager.conf`
-- Resolver baseline: `overlays/etc/network/resolved.conf`
+- Resolver baseline: `overlays/etc/network/resolved.conf` (DNSSEC enforced, no mDNS/LLMNR)
 - Time sync baseline: `overlays/etc/network/timesyncd.conf`
+- Firewall baseline: `overlays/etc/network/nftables.conf` (deny-by-default)
 - Gateway default surface is loopback-only unless explicitly exposed
 
 ## How to audit exposure
@@ -107,5 +115,6 @@ Use the pre-wired stubs under `image-builder/` to stage that transition.
 
 ## Validation
 
-- `scripts/audit.sh` verifies required overlay files exist.
-- `scripts/test-smoke.sh` validates boot, DHCP/default route, DNS, time sync, firewall policy, SSH policy, and update/verification path.
+- `scripts/audit.sh` verifies required overlay files exist and validates critical policy content (deny-default firewall, SSH hardening, sysctl, DNSSEC).
+- `scripts/test-smoke.sh` validates boot, DHCP/default route, DNS, time sync, firewall policy (deny-default), SSH policy (auth + ciphers), fail2ban, port exposure, and update/verification path.
+- CI runs ShellCheck lint before smoke tests.
