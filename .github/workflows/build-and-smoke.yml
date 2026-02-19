@@ -1,0 +1,24 @@
+name: build-and-smoke
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Make scripts executable
+        run: chmod +x scripts/*.sh ci/*.sh
+
+      - name: Audit scaffold
+        run: ./scripts/audit.sh
+
+      - name: Smoke tests (CI mode)
+        env:
+          MOLTCLAW_CI: "1"
+        run: ./ci/build-and-smoke.sh

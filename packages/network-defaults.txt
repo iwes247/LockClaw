@@ -1,0 +1,8 @@
+# MoltClaw Linux networking package set (placeholder manifest)
+network-manager
+systemd-resolved
+systemd-timesyncd
+iproute2
+ethtool
+curl
+bind9-dnsutils

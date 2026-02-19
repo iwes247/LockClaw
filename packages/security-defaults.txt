@@ -1,0 +1,8 @@
+# MoltClaw Linux security package set (placeholder manifest)
+openssh-server
+auditd
+sudo
+rsyslog
+apparmor
+nftables
+fail2ban

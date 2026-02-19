@@ -1,0 +1,15 @@
+# MoltClaw Linux audit baseline
+-D
+-b 8192
+-f 1
+
+# Watch auth and identity files
+-w /etc/passwd -p wa -k identity
+-w /etc/group -p wa -k identity
+-w /etc/shadow -p wa -k identity
+-w /etc/sudoers -p wa -k sudoers
+-w /etc/ssh/sshd_config -p wa -k sshd
+
+# Privilege escalation tools
+-w /usr/bin/sudo -p x -k priv_esc
+-w /usr/bin/su -p x -k priv_esc
