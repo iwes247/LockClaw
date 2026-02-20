@@ -46,8 +46,11 @@ start_services() {
 
     # ── rsyslog ──
     if command -v rsyslogd >/dev/null 2>&1; then
-        rsyslogd 2>/dev/null || log "WARN: rsyslog start failed"
-        log "rsyslog started"
+        if rsyslogd 2>/dev/null; then
+            log "rsyslog started"
+        else
+            log "WARN: rsyslog start failed"
+        fi
     fi
 
     # ── auditd ──
@@ -61,14 +64,20 @@ start_services() {
 
     # ── fail2ban ──
     if command -v fail2ban-server >/dev/null 2>&1; then
-        fail2ban-server -b 2>/dev/null || log "WARN: fail2ban start failed"
-        log "fail2ban started (sshd jail)"
+        if fail2ban-server -b 2>/dev/null; then
+            log "fail2ban started (sshd jail)"
+        else
+            log "WARN: fail2ban start failed"
+        fi
     fi
 
     # ── SSH ──
     if command -v sshd >/dev/null 2>&1; then
-        /usr/sbin/sshd 2>/dev/null || log "WARN: sshd start failed"
-        log "sshd started (key-auth only, modern ciphers)"
+        if /usr/sbin/sshd 2>/dev/null; then
+            log "sshd started (key-auth only, modern ciphers)"
+        else
+            log "WARN: sshd start failed"
+        fi
     fi
 
     log ""
