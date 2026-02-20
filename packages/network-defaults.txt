@@ -3,6 +3,7 @@
 iproute2
 ethtool
 curl
+ca-certificates
 bind9-dnsutils
 iputils-ping
 procps
