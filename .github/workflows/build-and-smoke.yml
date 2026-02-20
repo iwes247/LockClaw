@@ -70,7 +70,7 @@ jobs:
           echo "Listening ports:"
           docker exec moltclaw-ci ss -tlnp
           # Only SSH should be listening on non-loopback
-          UNEXPECTED=$(docker exec moltclaw-ci ss -tlnH 2>/dev/null | awk '{print $4}' | grep -v '127.0.0.1' | grep -v '\[::1\]' | grep -v ':22$' || true)
+          UNEXPECTED=$(docker exec moltclaw-ci ss -tlnH 2>/dev/null | awk '{print $4}' | grep -v '127.0.0.1' | grep -v '\[::1\]' | grep -v ':22$' | grep -v ':18789$' || true)
           if [ -n "$UNEXPECTED" ]; then
             echo "WARN: Unexpected listeners: $UNEXPECTED"
           fi

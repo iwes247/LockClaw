@@ -51,7 +51,13 @@ Remote access is via SSH tunnel or Tailscale — the gateway is never exposed di
 
 ## Quick start
 
-### Build (Docker)
+### Pull (recommended)
+
+```bash
+docker pull ghcr.io/iwes247/moltclaw:latest
+```
+
+### Build from source (alternative)
 
 ```bash
 git clone https://github.com/iwes247/MClLinux.git && cd MClLinux
