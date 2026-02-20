@@ -175,8 +175,11 @@ LABEL org.opencontainers.image.description="LockClaw + Ollama local LLM engine"
 # The official install script downloads the correct binary for the arch
 # and places it in /usr/local/bin. The systemd service setup will fail
 # in Docker (no systemd) but the binary is still installed.
-# Requires ca-certificates (added to network-defaults.txt).
-RUN curl -fsSL https://ollama.com/install.sh | sh || true && \
+# Requires ca-certificates + zstd for extraction.
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends zstd && \
+    apt-get clean && rm -rf /var/lib/apt/lists/* && \
+    curl -fsSL https://ollama.com/install.sh | sh || true && \
     command -v ollama && \
     ollama --version
 
