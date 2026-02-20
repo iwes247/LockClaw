@@ -39,42 +39,44 @@ jobs:
   build:
     needs: lint
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        target: [base, openclaw, ollama]
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Build LockClaw image
-        run: docker build -t lockclaw:ci .
+      - name: Build LockClaw image (${{ matrix.target }})
+        run: docker build --target ${{ matrix.target }} -t lockclaw:${{ matrix.target }} .
 
       - name: Start container
         run: |
-          docker run -d --name lockclaw-ci \
+          docker run -d --name lockclaw-${{ matrix.target }} \
             --cap-add NET_ADMIN \
             --cap-add AUDIT_WRITE \
-            lockclaw:ci
+            lockclaw:${{ matrix.target }}
 
       - name: Wait for services
-        run: sleep 3
+        run: sleep 5
 
       - name: Run smoke tests inside container
-        run: docker exec lockclaw-ci /opt/lockclaw/scripts/test-smoke.sh
+        run: docker exec lockclaw-${{ matrix.target }} /opt/lockclaw/scripts/test-smoke.sh
 
       - name: Verify firewall loaded
-        run: docker exec lockclaw-ci nft list ruleset | grep -q 'policy drop'
+        run: docker exec lockclaw-${{ matrix.target }} nft list ruleset | grep -q 'policy drop'
 
       - name: Verify SSH hardening
-        run: docker exec lockclaw-ci sshd -T | grep -qi 'permitrootlogin no'
+        run: docker exec lockclaw-${{ matrix.target }} sshd -T | grep -qi 'permitrootlogin no'
 
       - name: Check listening ports
         run: |
-          echo "Listening ports:"
-          docker exec lockclaw-ci ss -tlnp
-          # Only SSH should be listening on non-loopback
-          UNEXPECTED=$(docker exec lockclaw-ci ss -tlnH 2>/dev/null | awk '{print $4}' | grep -v '127.0.0.1' | grep -v '\[::1\]' | grep -v ':22$' | grep -v ':18789$' || true)
+          echo "Listening ports (${{ matrix.target }}):"
+          docker exec lockclaw-${{ matrix.target }} ss -tlnp
+          UNEXPECTED=$(docker exec lockclaw-${{ matrix.target }} ss -tlnH 2>/dev/null | awk '{print $4}' | grep -v '127.0.0.1' | grep -v '\[::1\]' | grep -v ':22$' | grep -v ':18789$' | grep -v ':11434$' || true)
           if [ -n "$UNEXPECTED" ]; then
             echo "WARN: Unexpected listeners: $UNEXPECTED"
           fi
 
       - name: Cleanup
         if: always()
-        run: docker rm -f lockclaw-ci 2>/dev/null || true
+        run: docker rm -f lockclaw-${{ matrix.target }} 2>/dev/null || true

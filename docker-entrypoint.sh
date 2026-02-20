@@ -2,12 +2,24 @@
 set -euo pipefail
 
 # LockClaw container entrypoint
-# Starts hardened services in the correct order
+# Detects which AI runtime is installed and starts it automatically
 
 log() { echo "[lockclaw] $*"; }
 
+# ── Detect installed runtime ────────────────────────────────
+detect_runtime() {
+    if command -v openclaw >/dev/null 2>&1; then
+        echo "openclaw"
+    elif command -v ollama >/dev/null 2>&1; then
+        echo "ollama"
+    else
+        echo "base"
+    fi
+}
+
+RUNTIME="$(detect_runtime)"
+
 inject_ssh_key() {
-    # Allow operator to inject SSH public key via environment variable
     if [ -n "${SSH_PUBLIC_KEY:-}" ]; then
         mkdir -p /home/lockclaw/.ssh
         echo "$SSH_PUBLIC_KEY" > /home/lockclaw/.ssh/authorized_keys
@@ -22,13 +34,12 @@ inject_ssh_key() {
     fi
 }
 
-start_services() {
+start_base_services() {
     log "Starting LockClaw services..."
 
-    # ── Inject SSH key ──
     inject_ssh_key
 
-    # ── Sysctl (requires --privileged or appropriate caps) ──
+    # ── Sysctl ──
     if sysctl --system >/dev/null 2>&1; then
         log "Applied sysctl hardening"
     else
@@ -79,13 +90,12 @@ start_services() {
             log "WARN: sshd start failed"
         fi
     fi
+}
 
-    # ── OpenClaw gateway ──
+start_openclaw() {
     if command -v openclaw >/dev/null 2>&1; then
-        # Start gateway in background as the lockclaw user
         export HOME=/home/lockclaw
         su lockclaw -c 'openclaw gateway --port 18789 &' 2>/dev/null
-        # Give it a moment to bind
         sleep 2
         if ss -tlnH 2>/dev/null | grep -q ':18789'; then
             log "OpenClaw gateway started (ws://127.0.0.1:18789)"
@@ -93,7 +103,26 @@ start_services() {
             log "WARN: OpenClaw gateway may still be starting on :18789"
         fi
     fi
+}
 
+start_ollama() {
+    if command -v ollama >/dev/null 2>&1; then
+        export OLLAMA_HOST="${OLLAMA_HOST:-127.0.0.1:11434}"
+        export OLLAMA_MODELS="${OLLAMA_MODELS:-/home/lockclaw/.ollama/models}"
+        # Start Ollama server in background
+        su lockclaw -c "OLLAMA_HOST=$OLLAMA_HOST OLLAMA_MODELS=$OLLAMA_MODELS ollama serve &" 2>/dev/null
+        sleep 2
+        if ss -tlnH 2>/dev/null | grep -q ':11434'; then
+            log "Ollama started ($OLLAMA_HOST)"
+        else
+            log "WARN: Ollama may still be starting on $OLLAMA_HOST"
+        fi
+        log "Pull a model:  ollama pull llama3.2"
+        log "Chat:          ollama run llama3.2"
+    fi
+}
+
+show_banner() {
     log ""
     log "╔══════════════════════════════════════════════════════════╗"
     log "║  LockClaw ready                                    ║"
@@ -101,22 +130,45 @@ start_services() {
     log "║  Admin user:  lockclaw (key-auth only)                  ║"
     log "║  SSH:         port 22 (rate-limited, modern ciphers)    ║"
     log "║  Firewall:    deny-by-default (nftables)                ║"
-    log "║  Gateway:     ws://127.0.0.1:18789 (loopback only)     ║"
-    log "║  Memory:      claude-mem (persistent across sessions)   ║"
+
+    case "$RUNTIME" in
+        openclaw)
+            log "║  Runtime:     OpenClaw (ws://127.0.0.1:18789)           ║"
+            log "║  Memory:      claude-mem (persistent across sessions)   ║"
+            ;;
+        ollama)
+            log "║  Runtime:     Ollama (http://127.0.0.1:11434)           ║"
+            log "║  Models:      /home/lockclaw/.ollama/models             ║"
+            ;;
+        base)
+            log "║  Runtime:     none (bring your own)                     ║"
+            ;;
+    esac
+
     log "║  Scanning:    AIDE + rkhunter + Lynis + port-scan det.  ║"
     log "║  Updates:     unattended-upgrades (security patches)    ║"
     log "║                                                         ║"
-    log "║  Configure:   openclaw onboard                          ║"
     log "║  Validate:    /opt/lockclaw/scripts/test-smoke.sh      ║"
     log "║  Scan:        /opt/lockclaw/scripts/security-scan.sh   ║"
     log "╚══════════════════════════════════════════════════════════╝"
     log ""
 }
 
+start_services() {
+    start_base_services
+
+    case "$RUNTIME" in
+        openclaw) start_openclaw ;;
+        ollama)   start_ollama ;;
+        base)     log "No AI runtime detected — base hardened image" ;;
+    esac
+
+    show_banner
+}
+
 case "${1:-start}" in
     start)
         start_services
-        # Keep container running
         log "LockClaw ready. PID 1 holding."
         exec tail -f /dev/null
         ;;

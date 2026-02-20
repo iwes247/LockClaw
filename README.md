@@ -1,14 +1,21 @@
 # LockClaw
 
-A hardened Linux distribution layer built on [OpenClaw](https://github.com/openclaw/openclaw). LockClaw enforces a deny-by-default security model and ships production-ready networking defaults out of the box — no manual hardening required after deployment.
+A hardened Linux container for self-hosting AI runtimes. LockClaw enforces a deny-by-default security model and ships production-ready networking defaults out of the box — no manual hardening required after deployment.
 
-The container ships with the **OpenClaw AI gateway** (`ws://127.0.0.1:18789`) and **[claude-mem](https://github.com/thedotmack/claude-mem)** persistent memory pre-installed. Provide an API key and you have a working AI assistant with memory that persists across sessions.
+Choose your runtime:
+
+| Image | Runtime | Pull |
+|-------|---------|------|
+| `lockclaw:openclaw` | [OpenClaw](https://github.com/openclaw/openclaw) gateway + [claude-mem](https://github.com/thedotmack/claude-mem) | `docker pull ghcr.io/iwes247/lockclaw:openclaw` |
+| `lockclaw:ollama` | [Ollama](https://ollama.com) local LLM engine | `docker pull ghcr.io/iwes247/lockclaw:ollama` |
+| `lockclaw:base` | None (bring your own) | `docker pull ghcr.io/iwes247/lockclaw:base` |
+| `lockclaw:latest` | Same as `openclaw` | `docker pull ghcr.io/iwes247/lockclaw:latest` |
 
 ## Why this exists
 
 Most Linux setups ship permissive defaults and leave hardening as an exercise for the operator. LockClaw inverts that: security and networking policy are applied at build time through declarative overlays, validated by automated tests, and enforced by the firewall, SSH, and audit subsystems from first boot.
 
-The base layer is OpenClaw `v2026.2.19` (pinned, overridable via `OPENCLAW_REF`). The gateway runs on Node.js 22 with claude-mem for persistent memory. Builds run through Docker or Nix. Image-builder stubs are in place for ISO/qcow2/raw artifact targets.
+The security layer is runtime-agnostic — the same hardening protects OpenClaw, Ollama, or any AI runtime you install. Builds run through Docker or Nix. Image-builder stubs are in place for ISO/qcow2/raw artifact targets.
 
 ## Architecture
 
@@ -31,6 +38,11 @@ ci/                       ← CI entrypoint; wired to GitHub Actions
 | Firewall | nftables drops all inbound; allows SSH (rate-limited), loopback, DHCP, established/related. Logged drops. | `overlays/etc/network/nftables.conf` |
 | SSH | Key-only auth. No root login. Modern ciphers only (chacha20-poly1305, aes256-gcm). MaxAuthTries 3. | `overlays/etc/security/sshd_config.d/10-lockclaw-hardening.conf` |
 | Brute-force | fail2ban bans IPs after 5 failed SSH attempts for 1 hour. | `overlays/etc/security/fail2ban/jail.local` |
+| Port scanning | nftables logs dropped packets → fail2ban auto-bans scanners for 24h. | `overlays/etc/security/fail2ban/filter.d/portscan.conf` |
+| File integrity | AIDE detects unauthorized changes to binaries and configs. | `overlays/etc/security/aide/aide.conf` |
+| Rootkit detection | rkhunter scans for known rootkits and backdoors. | `overlays/etc/security/rkhunter/rkhunter.conf.local` |
+| Security audit | Lynis provides a hardening score and actionable recommendations. | On-demand: `lynis audit system --quick` |
+| Auto updates | unattended-upgrades applies Debian security patches daily. | `overlays/etc/security/apt/50unattended-upgrades` |
 | Port scanning | nftables logs dropped packets; fail2ban detects repeated drops and bans the scanner's IP for 24 hours. | `overlays/etc/security/fail2ban/filter.d/portscan.conf` |
 | File integrity | AIDE monitors critical binaries and configs against a build-time baseline. Detects unauthorized modifications. | `overlays/etc/security/aide/aide.conf` |
 | Rootkit detection | rkhunter scans for known rootkits, backdoors, and suspicious files. | `overlays/etc/security/rkhunter/rkhunter.conf.local` |
@@ -50,26 +62,37 @@ ci/                       ← CI entrypoint; wired to GitHub Actions
 | DNS | 1.1.1.1 / 9.9.9.9 primary, 8.8.8.8 / 1.0.0.1 fallback. DNSSEC enforced. DoT opportunistic. | Verified resolution by default |
 | Discovery | mDNS disabled. LLMNR disabled. No Avahi. | Zero broadcast attack surface |
 | Time sync | Cloudflare + Google NTP, pool.ntp.org fallback. | Reliable TLS cert validation and log timestamps |
-| Exposure | OpenClaw gateway bound to `127.0.0.1:18789` only. SSH on `22/tcp` (hardened + rate-limited). Everything else dropped. | Minimal attack surface |
+| Exposure | AI runtime bound to loopback only (OpenClaw `:18789`, Ollama `:11434`). SSH on `22/tcp` (hardened + rate-limited). Everything else dropped. | Minimal attack surface |
 
 Remote access is via SSH tunnel or Tailscale — the gateway is never exposed directly.
 
 ## Quick start
 
-### Pull (recommended)
+### Pull
 
 ```bash
-docker pull ghcr.io/iwes247/lockclaw:latest
+# OpenClaw + claude-mem (default)
+docker pull ghcr.io/iwes247/lockclaw:openclaw
+
+# Ollama for local models (Llama, Mistral, Gemma, etc.)
+docker pull ghcr.io/iwes247/lockclaw:ollama
+
+# Hardened base only (bring your own runtime)
+docker pull ghcr.io/iwes247/lockclaw:base
 ```
 
-### Build from source (alternative)
+### Build from source
 
 ```bash
 git clone https://github.com/iwes247/LockClaw.git && cd LockClaw
-scripts/build.sh            # builds lockclaw:latest
+
+# Build a specific target
+docker build --target openclaw -t lockclaw:openclaw .
+docker build --target ollama   -t lockclaw:ollama .
+docker build --target base     -t lockclaw:base .
 ```
 
-### Run
+### Run (OpenClaw)
 
 ```bash
 docker run -d --name lockclaw \
@@ -78,8 +101,44 @@ docker run -d --name lockclaw \
   -e SSH_PUBLIC_KEY="$(cat ~/.ssh/id_ed25519.pub)" \
   -e ANTHROPIC_API_KEY="sk-ant-..." \
   -p 2222:22 \
-  lockclaw:latest
+  lockclaw:openclaw
 ```
+
+The OpenClaw gateway starts automatically on `ws://127.0.0.1:18789` (loopback only). Access via SSH tunnel:
+
+```bash
+ssh -p 2222 -L 18789:127.0.0.1:18789 lockclaw@localhost
+# Gateway is now available at ws://127.0.0.1:18789 on your machine
+```
+
+### Run (Ollama)
+
+```bash
+docker run -d --name lockclaw \
+  --cap-add NET_ADMIN \
+  --cap-add AUDIT_WRITE \
+  -e SSH_PUBLIC_KEY="$(cat ~/.ssh/id_ed25519.pub)" \
+  -v lockclaw-models:/home/lockclaw/.ollama \
+  -p 2222:22 \
+  lockclaw:ollama
+```
+
+Pull and run a model:
+
+```bash
+ssh -p 2222 lockclaw@localhost
+ollama pull llama3.2
+ollama run llama3.2
+```
+
+Access the Ollama API via SSH tunnel:
+
+```bash
+ssh -p 2222 -L 11434:127.0.0.1:11434 lockclaw@localhost
+curl http://127.0.0.1:11434/api/tags  # list models
+```
+
+### Common for all runtimes
 
 SSH in:
 ```bash
@@ -87,13 +146,6 @@ ssh -p 2222 lockclaw@localhost
 ```
 
 The `lockclaw` user has sudo access. Root login is disabled. Password auth is disabled.
-
-The OpenClaw gateway starts automatically on `ws://127.0.0.1:18789` (loopback only). Access it through SSH tunnel:
-
-```bash
-ssh -p 2222 -L 18789:127.0.0.1:18789 lockclaw@localhost
-# Gateway is now available at ws://127.0.0.1:18789 on your machine
-```
 
 ### Validate
 
@@ -144,16 +196,20 @@ make -C image-builder raw
 | Variable | Required | Description |
 |----------|----------|-------------|
 | `SSH_PUBLIC_KEY` | Yes | Public key injected into `lockclaw` user's `authorized_keys` |
-| `ANTHROPIC_API_KEY` | For AI | API key for Anthropic models (claude-opus-4-6 default) |
-| `OPENAI_API_KEY` | Optional | API key for OpenAI models |
+| `ANTHROPIC_API_KEY` | For OpenClaw | API key for Anthropic models (claude-opus-4-6 default) |
+| `OPENAI_API_KEY` | Optional | API key for OpenAI models (OpenClaw) |
 | `OPENCLAW_REF` | No | Override pinned OpenClaw version (default: `v2026.2.19`) |
 | `OPENCLAW_SHA` | No | Commit SHA for supply-chain verification |
+| `OLLAMA_HOST` | No | Ollama bind address (default: `127.0.0.1:11434`) |
+| `OLLAMA_MODELS` | No | Model storage path (default: `/home/lockclaw/.ollama/models`) |
 
-## OpenClaw gateway
+## Runtimes
 
-The gateway binds to loopback only (`127.0.0.1:18789`) and is never directly exposed. It supports multiple AI model providers — set the appropriate API key environment variable.
+### OpenClaw (`lockclaw:openclaw`)
 
-**claude-mem** provides persistent memory across sessions. Memory is stored at `/home/lockclaw/.openclaw/memory/` and survives container restarts if you mount a volume:
+The OpenClaw gateway binds to loopback only (`127.0.0.1:18789`) and is never directly exposed. It supports multiple AI model providers — set the appropriate API key environment variable.
+
+**claude-mem** provides persistent memory across sessions. Mount a volume to persist across container restarts:
 
 ```bash
 docker run -d --name lockclaw \
@@ -162,10 +218,10 @@ docker run -d --name lockclaw \
   -e ANTHROPIC_API_KEY="sk-ant-..." \
   -v lockclaw-memory:/home/lockclaw/.openclaw \
   -p 2222:22 \
-  lockclaw:latest
+  lockclaw:openclaw
 ```
 
-After first boot, configure channels and onboard:
+After first boot:
 
 ```bash
 ssh -p 2222 lockclaw@localhost
@@ -173,9 +229,53 @@ openclaw onboard            # interactive setup wizard
 openclaw gateway status     # check gateway health
 ```
 
+### Ollama (`lockclaw:ollama`)
+
+Run open-source LLMs locally — Llama, Mistral, Gemma, Phi, and more. The Ollama API binds to loopback only (`127.0.0.1:11434`).
+
+Mount a volume to persist downloaded models:
+
+```bash
+docker run -d --name lockclaw \
+  --cap-add NET_ADMIN --cap-add AUDIT_WRITE \
+  -e SSH_PUBLIC_KEY="$(cat ~/.ssh/id_ed25519.pub)" \
+  -v lockclaw-models:/home/lockclaw/.ollama \
+  -p 2222:22 \
+  lockclaw:ollama
+```
+
+Pull and use models:
+
+```bash
+ssh -p 2222 lockclaw@localhost
+ollama pull llama3.2        # download a model
+ollama run llama3.2         # interactive chat
+ollama list                 # see installed models
+```
+
+The Ollama API is available via SSH tunnel for programmatic access:
+
+```bash
+ssh -p 2222 -L 11434:127.0.0.1:11434 lockclaw@localhost
+curl http://127.0.0.1:11434/api/generate -d '{"model":"llama3.2","prompt":"Hello"}'
+```
+
+### Base (`lockclaw:base`)
+
+Hardened OS only — install your own AI runtime, web server, or any workload. All security features are active.
+
+### Security scanning
+
+All runtimes include AIDE, rkhunter, and Lynis. Run a full security scan:
+
+```bash
+docker exec lockclaw /opt/lockclaw/scripts/security-scan.sh
+```
+
 ## Supply chain
 
 - OpenClaw is pinned to `v2026.2.19` by default. Override with `OPENCLAW_REF`.
+- Ollama is installed from the official installer at build time.
 - Optional commit-SHA verification: set `OPENCLAW_SHA` and the build will hard-fail on mismatch.
 - OS packages are declared in `packages/security-defaults.txt` and `packages/network-defaults.txt`.
 

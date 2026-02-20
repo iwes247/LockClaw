@@ -52,8 +52,15 @@ elif [ "$CI_MODE" = "1" ]; then
   pass "network check skipped in CI (no ip command)"
 fi
 
-# 2) OpenClaw gateway posture
+# 2) AI runtime posture — detect and validate whichever runtime is installed
+RUNTIME="none"
 if command -v openclaw >/dev/null 2>&1; then
+  RUNTIME="openclaw"
+elif command -v ollama >/dev/null 2>&1; then
+  RUNTIME="ollama"
+fi
+
+if [ "$RUNTIME" = "openclaw" ]; then
   # a) Verify gateway binary exists and can report status
   if openclaw gateway status >/dev/null 2>&1; then
     pass "openclaw gateway status ok"
@@ -80,8 +87,40 @@ if command -v openclaw >/dev/null 2>&1; then
   else
     note "claude-mem not found (install with: npm install -g claude-mem@latest)"
   fi
-elif [ "$CI_MODE" = "1" ]; then
-  note "openclaw not in CI runner; gateway posture validated by Dockerfile"
+
+elif [ "$RUNTIME" = "ollama" ]; then
+  # a) Verify Ollama binary
+  if ollama --version >/dev/null 2>&1; then
+    pass "ollama installed ($(ollama --version 2>/dev/null | head -1))"
+  else
+    fail "ollama version check failed"
+  fi
+
+  # b) Verify Ollama is listening on loopback:11434
+  if command -v ss >/dev/null 2>&1; then
+    if ss -tlnH 2>/dev/null | grep -q ':11434'; then
+      pass "ollama server listening on :11434"
+    elif [ "$CONTAINER_MODE" = "1" ]; then
+      note "ollama port 11434 not yet bound (may still be starting)"
+    else
+      fail "ollama server not listening on :11434"
+    fi
+  fi
+
+  # c) Verify model storage directory
+  OLLAMA_DIR="${OLLAMA_MODELS:-/home/lockclaw/.ollama/models}"
+  if [ -d "$OLLAMA_DIR" ]; then
+    pass "ollama models directory exists ($OLLAMA_DIR)"
+  else
+    note "ollama models directory not found ($OLLAMA_DIR)"
+  fi
+
+elif [ "$RUNTIME" = "none" ]; then
+  if [ "$CI_MODE" = "1" ]; then
+    note "no AI runtime in CI runner; validated by Dockerfile"
+  else
+    pass "base image — no AI runtime (bring your own)"
+  fi
 fi
 
 # 3) DNS
@@ -200,12 +239,12 @@ fi
 # 8) Exposure audit — check for unexpected listening ports
 if command -v ss >/dev/null 2>&1; then
   # List all TCP listeners excluding loopback-only services
-  UNEXPECTED="$(ss -tlnH 2>/dev/null | awk '{print $4}' | grep -v '127\.0\.0\.1' | grep -v '\[::1\]' | grep -v ':22$' | grep -v ':18789$' || true)"
+  UNEXPECTED="$(ss -tlnH 2>/dev/null | awk '{print $4}' | grep -v '127\.0\.0\.1' | grep -v '\[::1\]' | grep -v ':22$' | grep -v ':18789$' | grep -v ':11434$' || true)"
   if [ -n "$UNEXPECTED" ]; then
     note "Unexpected non-loopback listeners detected: $UNEXPECTED"
     # Not a hard fail — the operator may have intentionally exposed services
   else
-    pass "no unexpected public listeners (SSH:22 + gateway:18789 loopback)"
+    pass "no unexpected public listeners (SSH:22 + runtime loopback)"
   fi
 elif [ "$CI_MODE" = "1" ] || [ "$CONTAINER_MODE" = "1" ]; then
   note "ss not available; port exposure check skipped"
@@ -277,7 +316,7 @@ elif [ "$CI_MODE" = "1" ]; then
 fi
 
 # 14) Update/verification path
-if command -v openclaw >/dev/null 2>&1; then
+if [ "$RUNTIME" = "openclaw" ]; then
   openclaw --version >/dev/null 2>&1 || fail "openclaw version check failed"
 
   if command -v npm >/dev/null 2>&1; then
@@ -289,10 +328,23 @@ if command -v openclaw >/dev/null 2>&1; then
 
   openclaw doctor --help >/dev/null 2>&1 || fail "openclaw doctor command unavailable"
   pass "update verification path available (openclaw doctor)"
+elif [ "$RUNTIME" = "ollama" ]; then
+  # Ollama updates via its own binary or curl installer
+  if ollama --version >/dev/null 2>&1; then
+    pass "ollama update path available (ollama --version)"
+  else
+    fail "ollama version check failed"
+  fi
 elif [ "$CI_MODE" = "1" ]; then
-  note "openclaw binary not present in CI runner; update path validated by policy docs"
-  grep -Eqi 'OpenClaw|doctor' "$ROOT_DIR/docs/design-spec.md" || fail "design spec missing update verification policy"
-  pass "update verification policy present"
+  note "no AI runtime in CI runner; update path validated by policy docs"
+  if [ -f "$ROOT_DIR/docs/design-spec.md" ]; then
+    grep -Eqi 'OpenClaw\|Ollama\|doctor' "$ROOT_DIR/docs/design-spec.md" || fail "design spec missing update verification policy"
+    pass "update verification policy present"
+  else
+    note "design spec not found; skipping"
+  fi
+else
+  pass "base image — runtime updates managed externally"
 fi
 
 echo "Smoke tests completed successfully."

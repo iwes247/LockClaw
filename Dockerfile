@@ -1,51 +1,45 @@
 # LockClaw — Hardened container image
-# Secure-by-default OS layer for OpenClaw gateway hosting
+# Security-hardened OS layer for self-hosting AI runtimes
 #
-# Build:  docker build -t lockclaw:latest .
-# Run:    docker run -d --name lockclaw --cap-add NET_ADMIN --cap-add AUDIT_WRITE -p 2222:22 lockclaw:latest
-# Shell:  docker exec -it lockclaw bash
-# Test:   docker exec lockclaw /opt/lockclaw/scripts/test-smoke.sh
+# Targets:
+#   base     — hardened OS only (bring your own runtime)
+#   openclaw — base + OpenClaw gateway + claude-mem
+#   ollama   — base + Ollama for local LLM inference
+#
+# Build:
+#   docker build --target base     -t lockclaw:base .
+#   docker build --target openclaw -t lockclaw:openclaw .
+#   docker build --target ollama   -t lockclaw:ollama .
+#   docker build -t lockclaw:latest .       # defaults to openclaw
+#
+# Run:
+#   docker run -d --name lockclaw --cap-add NET_ADMIN --cap-add AUDIT_WRITE -p 2222:22 lockclaw:latest
+# Test:
+#   docker exec lockclaw /opt/lockclaw/scripts/test-smoke.sh
 
+# ═════════════════════════════════════════════════════════════
+# Stage 1: BASE — Hardened OS with no AI runtime
+# ═════════════════════════════════════════════════════════════
 FROM debian:bookworm-slim AS base
 
 LABEL maintainer="iwes247"
 LABEL org.opencontainers.image.title="LockClaw"
-LABEL org.opencontainers.image.description="Hardened Linux layer for OpenClaw gateway hosting"
+LABEL org.opencontainers.image.description="Hardened Linux layer for self-hosting AI runtimes"
 
 # ── Environment ──────────────────────────────────────────────
 ENV DEBIAN_FRONTEND=noninteractive
 ENV LOCKCLAW_HOME=/opt/lockclaw
 
 # ── Install OS packages ─────────────────────────────────────
-# Two-phase: copy manifests first for layer caching, then install
 COPY packages/security-defaults.txt /tmp/security-defaults.txt
 COPY packages/network-defaults.txt  /tmp/network-defaults.txt
 
 RUN apt-get update && \
-    # Parse package names from manifests (skip comments and blanks)
     grep -hv '^\s*#\|^\s*$' /tmp/security-defaults.txt /tmp/network-defaults.txt \
       | xargs apt-get install -y --no-install-recommends && \
-    # Clean up apt cache to keep image small
     apt-get clean && rm -rf /var/lib/apt/lists/* /tmp/*.txt
 
-# ── Install Node.js 22 (OpenClaw runtime) ───────────────────
-RUN apt-get update && \
-    apt-get install -y --no-install-recommends ca-certificates gnupg git && \
-    mkdir -p /etc/apt/keyrings && \
-    curl -fsSL https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key \
-      | gpg --dearmor -o /etc/apt/keyrings/nodesource.gpg && \
-    echo "deb [signed-by=/etc/apt/keyrings/nodesource.gpg] https://deb.nodesource.com/node_22.x nodistro main" \
-      > /etc/apt/sources.list.d/nodesource.list && \
-    apt-get update && \
-    apt-get install -y --no-install-recommends nodejs && \
-    apt-get clean && rm -rf /var/lib/apt/lists/*
-
-# ── Install OpenClaw gateway ─────────────────────────────────
-RUN npm install -g openclaw@latest && \
-    npm cache clean --force
-
 # ── Create directories needed by overlays ────────────────────
-# Must exist before COPY targets them
 RUN mkdir -p /etc/sysctl.d \
              /etc/security \
              /etc/ssh/sshd_config.d \
@@ -79,12 +73,9 @@ COPY overlays/etc/security/apt/50unattended-upgrades    /etc/apt/apt.conf.d/50un
 COPY overlays/etc/security/apt/20auto-upgrades          /etc/apt/apt.conf.d/20auto-upgrades
 
 # ── Apply network overlays ──────────────────────────────────
-# NetworkManager, resolved, timesyncd — not used in container mode
-# Their overlays remain in the repo for bare-metal/VM targets
 COPY overlays/etc/network/nftables.conf         /etc/nftables.conf
 
 # ── Apply login.defs overrides ───────────────────────────────
-# login.defs doesn't support .d/ drop-ins; patch in-place
 RUN if [ -f /etc/login.defs ]; then \
       sed -i 's/^ENCRYPT_METHOD.*/ENCRYPT_METHOD yescrypt/' /etc/login.defs; \
       sed -i 's/^PASS_MAX_DAYS.*/PASS_MAX_DAYS 90/' /etc/login.defs; \
@@ -104,12 +95,9 @@ RUN chmod 0440 /etc/sudoers.d/* && \
     chmod 0644 /etc/apt/apt.conf.d/20auto-upgrades
 
 # ── SSH host keys ────────────────────────────────────────────
-# Generate at build time so the image is ready to accept connections
 RUN ssh-keygen -A
 
 # ── Initialise AIDE baseline ─────────────────────────────────
-# Captures the "known good" file state at build time.
-# Run `aide --check` at runtime to detect any modifications.
 RUN aide --init --config /etc/aide/aide.conf && \
     mv /var/lib/aide/aide.db.new /var/lib/aide/aide.db
 
@@ -117,26 +105,11 @@ RUN aide --init --config /etc/aide/aide.conf && \
 RUN rkhunter --propupd --nocolors 2>/dev/null || true
 
 # ── Create admin user ────────────────────────────────────────
-# Root login is disabled by SSH policy. This is the admin account.
-# The operator must inject their public key at runtime.
 RUN useradd -m -s /bin/bash -G sudo lockclaw && \
     mkdir -p /home/lockclaw/.ssh && \
     chmod 700 /home/lockclaw/.ssh && \
     chown -R lockclaw:lockclaw /home/lockclaw/.ssh && \
-    # Lock password (key-only auth enforced by sshd_config)
     passwd -l lockclaw
-
-# ── Configure OpenClaw workspace ─────────────────────────────
-# Minimal config: model set via env var at runtime, gateway on loopback
-RUN mkdir -p /home/lockclaw/.openclaw/workspace/skills && \
-    echo '{"gateway":{"port":18789,"bind":"loopback"},"agent":{"model":"anthropic/claude-opus-4-6"}}' \
-      > /home/lockclaw/.openclaw/openclaw.json && \
-    chown -R lockclaw:lockclaw /home/lockclaw/.openclaw
-
-# ── Pre-install claude-mem plugin ────────────────────────────
-# Persistent memory across sessions — the killer feature for self-hosted AI
-RUN npm install -g claude-mem@latest && \
-    npm cache clean --force
 
 # ── Copy LockClaw repo tooling into the image ───────────
 COPY scripts/  ${LOCKCLAW_HOME}/scripts/
@@ -149,7 +122,67 @@ RUN chmod +x ${LOCKCLAW_HOME}/scripts/*.sh
 COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 RUN chmod +x /usr/local/bin/docker-entrypoint.sh
 
-EXPOSE 22 18789
+EXPOSE 22
 
 ENTRYPOINT ["docker-entrypoint.sh"]
 CMD ["start"]
+
+
+# ═════════════════════════════════════════════════════════════
+# Stage 2: OPENCLAW — OpenClaw gateway + claude-mem
+# ═════════════════════════════════════════════════════════════
+FROM base AS openclaw
+
+LABEL org.opencontainers.image.description="LockClaw + OpenClaw AI gateway + claude-mem"
+
+# ── Install Node.js 22 ──────────────────────────────────────
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends ca-certificates gnupg git && \
+    mkdir -p /etc/apt/keyrings && \
+    curl -fsSL https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key \
+      | gpg --dearmor -o /etc/apt/keyrings/nodesource.gpg && \
+    echo "deb [signed-by=/etc/apt/keyrings/nodesource.gpg] https://deb.nodesource.com/node_22.x nodistro main" \
+      > /etc/apt/sources.list.d/nodesource.list && \
+    apt-get update && \
+    apt-get install -y --no-install-recommends nodejs && \
+    apt-get clean && rm -rf /var/lib/apt/lists/*
+
+# ── Install OpenClaw gateway ─────────────────────────────────
+RUN npm install -g openclaw@latest && \
+    npm cache clean --force
+
+# ── Configure OpenClaw workspace ─────────────────────────────
+RUN mkdir -p /home/lockclaw/.openclaw/workspace/skills && \
+    echo '{"gateway":{"port":18789,"bind":"loopback"},"agent":{"model":"anthropic/claude-opus-4-6"}}' \
+      > /home/lockclaw/.openclaw/openclaw.json && \
+    chown -R lockclaw:lockclaw /home/lockclaw/.openclaw
+
+# ── Pre-install claude-mem plugin ────────────────────────────
+RUN npm install -g claude-mem@latest && \
+    npm cache clean --force
+
+EXPOSE 18789
+
+
+# ═════════════════════════════════════════════════════════════
+# Stage 3: OLLAMA — Local LLM inference engine
+# ═════════════════════════════════════════════════════════════
+FROM base AS ollama
+
+LABEL org.opencontainers.image.description="LockClaw + Ollama local LLM engine"
+
+# ── Install Ollama ───────────────────────────────────────────
+# Single binary, no runtime dependencies
+RUN curl -fsSL https://ollama.com/install.sh | bash
+
+# ── Configure Ollama for loopback-only ───────────────────────
+# Bind to loopback so the API is never directly exposed — same approach
+# as the OpenClaw gateway. Access via SSH tunnel.
+ENV OLLAMA_HOST=127.0.0.1:11434
+ENV OLLAMA_MODELS=/home/lockclaw/.ollama/models
+
+# ── Create Ollama dirs with correct ownership ────────────────
+RUN mkdir -p /home/lockclaw/.ollama/models && \
+    chown -R lockclaw:lockclaw /home/lockclaw/.ollama
+
+EXPOSE 11434

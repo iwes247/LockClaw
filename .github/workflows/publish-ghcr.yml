@@ -17,6 +17,9 @@ env:
 jobs:
   build-and-push:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        target: [base, openclaw, ollama]
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -37,27 +40,28 @@ jobs:
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           tags: |
-            type=raw,value=latest,enable={{is_default_branch}}
-            type=sha,prefix=
-            type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
+            type=raw,value=${{ matrix.target }},enable={{is_default_branch}}
+            type=raw,value=latest,enable=${{ matrix.target == 'openclaw' && github.ref == format('refs/heads/{0}', 'main') }}
+            type=sha,prefix=${{ matrix.target }}-
+            type=semver,pattern=${{ matrix.target }}-{{version}}
 
       - name: Build and push
         uses: docker/build-push-action@v6
         with:
           context: .
+          target: ${{ matrix.target }}
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          cache-from: type=gha,scope=${{ matrix.target }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.target }}
 
       - name: Smoke test published image
         run: |
           docker run -d --name lockclaw-ghcr \
             --cap-add NET_ADMIN \
             --cap-add AUDIT_WRITE \
-            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
-          sleep 3
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ matrix.target }}
+          sleep 5
           docker exec lockclaw-ghcr /opt/lockclaw/scripts/test-smoke.sh
           docker rm -f lockclaw-ghcr
