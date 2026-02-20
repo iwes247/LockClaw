@@ -62,15 +62,17 @@ scripts/build.sh            # builds moltclaw:latest
 docker run -d --name moltclaw \
   --cap-add NET_ADMIN \
   --cap-add AUDIT_WRITE \
+  -e SSH_PUBLIC_KEY="$(cat ~/.ssh/id_ed25519.pub)" \
   -p 2222:22 \
   moltclaw:latest
 ```
 
-SSH in (after adding your public key):
+SSH in:
 ```bash
-ssh -p 2222 root@localhost    # will be rejected — root login is disabled
-ssh -p 2222 admin@localhost   # key-only auth
+ssh -p 2222 moltclaw@localhost
 ```
+
+The `moltclaw` user has sudo access. Root login is disabled. Password auth is disabled.
 
 ### Validate
 

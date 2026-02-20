@@ -1,8 +1,9 @@
-# MoltClaw Linux security package set (placeholder manifest)
+# MoltClaw Linux security package set
+# These are Debian apt package names (bookworm)
 openssh-server
 auditd
 sudo
 rsyslog
-apparmor
 nftables
 fail2ban
+# apparmor — requires host kernel support; enable on bare-metal/VM targets

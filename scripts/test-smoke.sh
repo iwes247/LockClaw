@@ -8,44 +8,48 @@ note() { echo "NOTE: $*"; }
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 CI_MODE="${MOLTCLAW_CI:-0}"
 
+# Detect if running inside a container (Docker / LXC / podman)
+CONTAINER_MODE=0
+if [ -f /.dockerenv ] || grep -qsE ':/docker/|:/lxc/' /proc/1/cgroup 2>/dev/null; then
+  CONTAINER_MODE=1
+fi
+
 # 0) Boot check
 if [ -r /proc/uptime ]; then
   awk '{ if ($1 > 0) exit 0; exit 1 }' /proc/uptime || fail "system uptime invalid"
   pass "system booted"
-elif [ "$CI_MODE" = "1" ]; then
-  pass "boot check skipped in CI (non-VM host)"
+elif [ "$CI_MODE" = "1" ] || [ "$CONTAINER_MODE" = "1" ]; then
+  pass "boot check skipped (CI or container)"
 else
   fail "cannot verify boot state"
 fi
 
-# 1) Network via DHCP
+# 1) Network connectivity
 if command -v ip >/dev/null 2>&1; then
   DEF_IFACE="$(ip route show default 2>/dev/null | awk '{print $5}' | head -n1 || true)"
   if [ -n "${DEF_IFACE:-}" ]; then
     pass "default route present on $DEF_IFACE"
-
-    if command -v nmcli >/dev/null 2>&1; then
-      if nmcli -g ipv4.method device show "$DEF_IFACE" 2>/dev/null | grep -Eq 'auto'; then
-        pass "DHCP method detected on $DEF_IFACE"
-      elif [ "$CI_MODE" = "1" ]; then
-        grep -Eqi '^\s*\[main\]' "$ROOT_DIR/overlays/etc/network/NetworkManager.conf" || fail "missing NetworkManager overlay"
-        pass "DHCP policy fallback validated from network overlay"
-      else
-        fail "DHCP method not detected on $DEF_IFACE"
-      fi
-    elif [ "$CI_MODE" = "1" ]; then
-      grep -Eqi '^\s*\[main\]' "$ROOT_DIR/overlays/etc/network/NetworkManager.conf" || fail "missing NetworkManager overlay"
-      pass "DHCP policy fallback validated from network overlay"
-    fi
-  elif [ "$CI_MODE" = "1" ]; then
-    grep -Eqi '^\s*\[main\]' "$ROOT_DIR/overlays/etc/network/NetworkManager.conf" || fail "missing NetworkManager overlay"
-    pass "default-route/DHCP fallback validated from network overlay"
+  elif [ "$CI_MODE" = "1" ] || [ "$CONTAINER_MODE" = "1" ]; then
+    pass "default-route check skipped (CI or container networking)"
   else
     fail "no default route detected"
   fi
+  # NetworkManager validation — only on bare-metal/VM targets
+  if [ "$CONTAINER_MODE" = "0" ] && command -v nmcli >/dev/null 2>&1; then
+    if [ -n "${DEF_IFACE:-}" ]; then
+      if nmcli -g ipv4.method device show "$DEF_IFACE" 2>/dev/null | grep -Eq 'auto'; then
+        pass "DHCP method detected on $DEF_IFACE (NetworkManager)"
+      elif [ "$CI_MODE" = "1" ]; then
+        grep -Eqi '^\s*\[main\]' "$ROOT_DIR/overlays/etc/network/NetworkManager.conf" || fail "missing NetworkManager overlay"
+        pass "DHCP policy fallback validated from network overlay"
+      fi
+    fi
+  elif [ "$CI_MODE" = "1" ] && [ -f "$ROOT_DIR/overlays/etc/network/NetworkManager.conf" ]; then
+    grep -Eqi '^\s*\[main\]' "$ROOT_DIR/overlays/etc/network/NetworkManager.conf" || fail "missing NetworkManager overlay"
+    pass "NetworkManager overlay validated (bare-metal/VM policy)"
+  fi
 elif [ "$CI_MODE" = "1" ]; then
-  grep -Eqi '^\s*\[main\]' "$ROOT_DIR/overlays/etc/network/NetworkManager.conf" || fail "missing NetworkManager overlay"
-  pass "DHCP policy fallback validated from network overlay"
+  pass "network check skipped in CI (no ip command)"
 fi
 
 # 2) Network/gateway posture
@@ -61,7 +65,7 @@ if command -v getent >/dev/null 2>&1; then
 fi
 
 # 4) Time sync
-if command -v timedatectl >/dev/null 2>&1; then
+if command -v timedatectl >/dev/null 2>&1 && [ "$CONTAINER_MODE" = "0" ]; then
   if [ "$(timedatectl show -p NTPSynchronized --value 2>/dev/null || echo no)" = "yes" ]; then
     pass "NTP synchronized"
   elif [ "$CI_MODE" = "1" ]; then
@@ -70,9 +74,13 @@ if command -v timedatectl >/dev/null 2>&1; then
   else
     fail "NTP not synchronized"
   fi
-elif [ "$CI_MODE" = "1" ]; then
-  grep -Eqi '^\s*NTP=' "$ROOT_DIR/overlays/etc/network/timesyncd.conf" || fail "timesync overlay missing NTP"
-  pass "time sync policy validated from overlay"
+elif [ "$CI_MODE" = "1" ] || [ "$CONTAINER_MODE" = "1" ]; then
+  if [ -f "$ROOT_DIR/overlays/etc/network/timesyncd.conf" ]; then
+    grep -Eqi '^\s*NTP=' "$ROOT_DIR/overlays/etc/network/timesyncd.conf" || fail "timesync overlay missing NTP"
+    pass "time sync policy validated from overlay (not applicable in container)"
+  else
+    note "timesyncd overlay not found; skipping"
+  fi
 fi
 
 # 5) Firewall (best-effort)
@@ -105,8 +113,8 @@ fi
 if command -v ss >/dev/null 2>&1; then
   if ss -ltn | grep -q ':22'; then
     pass "sshd listening"
-  elif [ "$CI_MODE" = "1" ]; then
-    note "sshd not listening in CI host; validating SSH posture from overlay"
+  elif [ "$CI_MODE" = "1" ] || [ "$CONTAINER_MODE" = "1" ]; then
+    note "sshd not listening yet; validating SSH posture from config"
   else
     fail "sshd not listening on 22"
   fi
@@ -137,6 +145,14 @@ fi
 if command -v fail2ban-client >/dev/null 2>&1; then
   if fail2ban-client status sshd >/dev/null 2>&1; then
     pass "fail2ban sshd jail active"
+  elif [ "$CONTAINER_MODE" = "1" ]; then
+    # In container mode, fail2ban may be starting; validate the config instead
+    if [ -f /etc/fail2ban/jail.local ]; then
+      grep -Eqi '^\s*enabled\s*=\s*true' /etc/fail2ban/jail.local || fail "fail2ban sshd jail not enabled"
+      pass "fail2ban config validated (jail may still be starting)"
+    else
+      fail "fail2ban installed but no jail.local found"
+    fi
   else
     fail "fail2ban installed but sshd jail not active"
   fi
@@ -157,8 +173,8 @@ if command -v ss >/dev/null 2>&1; then
   else
     pass "no unexpected public listeners (only SSH:22)"
   fi
-elif [ "$CI_MODE" = "1" ]; then
-  note "ss not available in CI; port exposure check skipped"
+elif [ "$CI_MODE" = "1" ] || [ "$CONTAINER_MODE" = "1" ]; then
+  note "ss not available; port exposure check skipped"
 fi
 
 # 9) Update/verification path

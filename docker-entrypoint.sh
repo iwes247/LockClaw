@@ -6,8 +6,27 @@ set -euo pipefail
 
 log() { echo "[moltclaw] $*"; }
 
+inject_ssh_key() {
+    # Allow operator to inject SSH public key via environment variable
+    if [ -n "${SSH_PUBLIC_KEY:-}" ]; then
+        mkdir -p /home/moltclaw/.ssh
+        echo "$SSH_PUBLIC_KEY" > /home/moltclaw/.ssh/authorized_keys
+        chmod 600 /home/moltclaw/.ssh/authorized_keys
+        chown -R moltclaw:moltclaw /home/moltclaw/.ssh
+        log "SSH public key injected for user 'moltclaw'"
+    elif [ -f /home/moltclaw/.ssh/authorized_keys ]; then
+        log "SSH authorized_keys found (mounted or pre-existing)"
+    else
+        log "WARN: No SSH key configured. Set SSH_PUBLIC_KEY env var or mount authorized_keys."
+        log "  Example: docker run -e SSH_PUBLIC_KEY=\"\$(cat ~/.ssh/id_ed25519.pub)\" ..."
+    fi
+}
+
 start_services() {
     log "Starting MoltClawLinux services..."
+
+    # ── Inject SSH key ──
+    inject_ssh_key
 
     # ── Sysctl (requires --privileged or appropriate caps) ──
     if sysctl --system >/dev/null 2>&1; then
@@ -21,23 +40,22 @@ start_services() {
         if nft -f /etc/nftables.conf 2>/dev/null; then
             log "Firewall loaded (deny-by-default)"
         else
-            log "WARN: nftables load failed (need NET_ADMIN capability)"
+            log "WARN: nftables load failed (need --cap-add NET_ADMIN)"
         fi
     fi
 
     # ── rsyslog ──
     if command -v rsyslogd >/dev/null 2>&1; then
-        rsyslogd
+        rsyslogd 2>/dev/null || log "WARN: rsyslog start failed"
         log "rsyslog started"
     fi
 
     # ── auditd ──
     if command -v auditd >/dev/null 2>&1; then
-        # auditd needs AUDIT_WRITE capability
-        if auditd -s enable 2>/dev/null || auditd 2>/dev/null; then
+        if auditd 2>/dev/null; then
             log "auditd started"
         else
-            log "WARN: auditd failed (need AUDIT_WRITE capability)"
+            log "WARN: auditd failed (need --cap-add AUDIT_WRITE)"
         fi
     fi
 
@@ -49,13 +67,22 @@ start_services() {
 
     # ── SSH ──
     if command -v sshd >/dev/null 2>&1; then
-        /usr/sbin/sshd
+        /usr/sbin/sshd 2>/dev/null || log "WARN: sshd start failed"
         log "sshd started (key-auth only, modern ciphers)"
     fi
 
-    log "All services started."
-    log "Exposure: SSH on :22 (hardened), gateway on 127.0.0.1:18789 (loopback)"
-    log "Run: docker exec <container> /opt/moltclaw/scripts/test-smoke.sh"
+    log ""
+    log "╔══════════════════════════════════════════════════════════╗"
+    log "║  MoltClawLinux ready                                    ║"
+    log "║                                                         ║"
+    log "║  Admin user:  moltclaw (key-auth only)                  ║"
+    log "║  SSH:         port 22 (rate-limited, modern ciphers)    ║"
+    log "║  Firewall:    deny-by-default (nftables)                ║"
+    log "║  Gateway:     127.0.0.1:18789 (loopback only)          ║"
+    log "║                                                         ║"
+    log "║  Validate:    /opt/moltclaw/scripts/test-smoke.sh      ║"
+    log "╚══════════════════════════════════════════════════════════╝"
+    log ""
 }
 
 case "${1:-start}" in

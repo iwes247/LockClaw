@@ -28,10 +28,23 @@ RUN apt-get update && \
     # Clean up apt cache to keep image small
     apt-get clean && rm -rf /var/lib/apt/lists/* /tmp/*.txt
 
+# ── Create directories needed by overlays ────────────────────
+# Must exist before COPY targets them
+RUN mkdir -p /etc/sysctl.d \
+             /etc/security \
+             /etc/ssh/sshd_config.d \
+             /etc/sudoers.d \
+             /etc/audit/rules.d \
+             /etc/systemd/journald.conf.d \
+             /etc/rsyslog.d \
+             /etc/logrotate.d \
+             /etc/fail2ban \
+             /var/log/journal \
+             /run/sshd
+
 # ── Apply security overlays ─────────────────────────────────
 COPY overlays/etc/security/sysctl.conf          /etc/sysctl.d/99-moltclaw.conf
 COPY overlays/etc/security/limits.conf          /etc/security/limits.d/99-moltclaw.conf
-COPY overlays/etc/security/login.defs           /etc/login.defs.d/moltclaw
 COPY overlays/etc/security/sudoers.d/           /etc/sudoers.d/
 COPY overlays/etc/security/sshd_config.d/       /etc/ssh/sshd_config.d/
 COPY overlays/etc/security/audit/audit.rules    /etc/audit/rules.d/99-moltclaw.rules
@@ -41,9 +54,8 @@ COPY overlays/etc/security/rsyslog.d/           /etc/rsyslog.d/
 COPY overlays/etc/security/logrotate.d/sudo     /etc/logrotate.d/sudo
 
 # ── Apply network overlays ──────────────────────────────────
-COPY overlays/etc/network/NetworkManager.conf   /etc/NetworkManager/conf.d/99-moltclaw.conf
-COPY overlays/etc/network/resolved.conf         /etc/systemd/resolved.conf.d/99-moltclaw.conf
-COPY overlays/etc/network/timesyncd.conf        /etc/systemd/timesyncd.conf.d/99-moltclaw.conf
+# NetworkManager, resolved, timesyncd — not used in container mode
+# Their overlays remain in the repo for bare-metal/VM targets
 COPY overlays/etc/network/nftables.conf         /etc/nftables.conf
 
 # ── Apply login.defs overrides ───────────────────────────────
@@ -53,17 +65,7 @@ RUN if [ -f /etc/login.defs ]; then \
       sed -i 's/^PASS_MAX_DAYS.*/PASS_MAX_DAYS 90/' /etc/login.defs; \
       sed -i 's/^PASS_MIN_DAYS.*/PASS_MIN_DAYS 1/' /etc/login.defs; \
       sed -i 's/^UMASK.*/UMASK 027/' /etc/login.defs; \
-    fi && \
-    rm -f /etc/login.defs.d/moltclaw
-
-# ── Create drop-in directories if missing ────────────────────
-RUN mkdir -p /etc/systemd/journald.conf.d \
-             /etc/systemd/resolved.conf.d \
-             /etc/systemd/timesyncd.conf.d \
-             /etc/NetworkManager/conf.d \
-             /etc/audit/rules.d \
-             /var/log/journal \
-             /run/sshd
+    fi
 
 # ── Set correct permissions on security files ────────────────
 RUN chmod 0440 /etc/sudoers.d/* && \
@@ -76,6 +78,16 @@ RUN chmod 0440 /etc/sudoers.d/* && \
 # ── SSH host keys ────────────────────────────────────────────
 # Generate at build time so the image is ready to accept connections
 RUN ssh-keygen -A
+
+# ── Create admin user ────────────────────────────────────────
+# Root login is disabled by SSH policy. This is the admin account.
+# The operator must inject their public key at runtime.
+RUN useradd -m -s /bin/bash -G sudo moltclaw && \
+    mkdir -p /home/moltclaw/.ssh && \
+    chmod 700 /home/moltclaw/.ssh && \
+    chown -R moltclaw:moltclaw /home/moltclaw/.ssh && \
+    # Lock password (key-only auth enforced by sshd_config)
+    passwd -l moltclaw
 
 # ── Copy MoltClawLinux repo tooling into the image ───────────
 COPY scripts/  ${MOLTCLAW_HOME}/scripts/
