@@ -65,7 +65,7 @@ start_services() {
     # ── fail2ban ──
     if command -v fail2ban-server >/dev/null 2>&1; then
         if fail2ban-server -b 2>/dev/null; then
-            log "fail2ban started (sshd jail)"
+            log "fail2ban started (sshd + portscan jails)"
         else
             log "WARN: fail2ban start failed"
         fi
@@ -103,9 +103,12 @@ start_services() {
     log "║  Firewall:    deny-by-default (nftables)                ║"
     log "║  Gateway:     ws://127.0.0.1:18789 (loopback only)     ║"
     log "║  Memory:      claude-mem (persistent across sessions)   ║"
+    log "║  Scanning:    AIDE + rkhunter + Lynis + port-scan det.  ║"
+    log "║  Updates:     unattended-upgrades (security patches)    ║"
     log "║                                                         ║"
     log "║  Configure:   openclaw onboard                          ║"
     log "║  Validate:    /opt/lockclaw/scripts/test-smoke.sh      ║"
+    log "║  Scan:        /opt/lockclaw/scripts/security-scan.sh   ║"
     log "╚══════════════════════════════════════════════════════════╝"
     log ""
 }

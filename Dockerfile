@@ -54,7 +54,11 @@ RUN mkdir -p /etc/sysctl.d \
              /etc/systemd/journald.conf.d \
              /etc/rsyslog.d \
              /etc/logrotate.d \
-             /etc/fail2ban \
+             /etc/fail2ban/filter.d \
+             /etc/aide \
+             /etc/rkhunter.conf.d \
+             /etc/apt/apt.conf.d \
+             /var/lib/aide \
              /var/log/journal \
              /run/sshd
 
@@ -66,8 +70,13 @@ COPY overlays/etc/security/sshd_config.d/       /etc/ssh/sshd_config.d/
 COPY overlays/etc/security/audit/audit.rules    /etc/audit/rules.d/99-lockclaw.rules
 COPY overlays/etc/security/logging/journald.conf /etc/systemd/journald.conf.d/99-lockclaw.conf
 COPY overlays/etc/security/fail2ban/jail.local  /etc/fail2ban/jail.local
+COPY overlays/etc/security/fail2ban/filter.d/   /etc/fail2ban/filter.d/
 COPY overlays/etc/security/rsyslog.d/           /etc/rsyslog.d/
 COPY overlays/etc/security/logrotate.d/sudo     /etc/logrotate.d/sudo
+COPY overlays/etc/security/aide/aide.conf       /etc/aide/aide.conf
+COPY overlays/etc/security/rkhunter/rkhunter.conf.local /etc/rkhunter.conf.d/lockclaw.conf
+COPY overlays/etc/security/apt/50unattended-upgrades    /etc/apt/apt.conf.d/50unattended-upgrades
+COPY overlays/etc/security/apt/20auto-upgrades          /etc/apt/apt.conf.d/20auto-upgrades
 
 # ── Apply network overlays ──────────────────────────────────
 # NetworkManager, resolved, timesyncd — not used in container mode
@@ -89,11 +98,23 @@ RUN chmod 0440 /etc/sudoers.d/* && \
     chmod 0640 /etc/audit/rules.d/* && \
     chmod 0644 /etc/nftables.conf && \
     chmod 0644 /etc/fail2ban/jail.local && \
-    chmod 0644 /etc/logrotate.d/sudo
+    chmod 0644 /etc/logrotate.d/sudo && \
+    chmod 0600 /etc/aide/aide.conf && \
+    chmod 0644 /etc/apt/apt.conf.d/50unattended-upgrades && \
+    chmod 0644 /etc/apt/apt.conf.d/20auto-upgrades
 
 # ── SSH host keys ────────────────────────────────────────────
 # Generate at build time so the image is ready to accept connections
 RUN ssh-keygen -A
+
+# ── Initialise AIDE baseline ─────────────────────────────────
+# Captures the "known good" file state at build time.
+# Run `aide --check` at runtime to detect any modifications.
+RUN aide --init --config /etc/aide/aide.conf && \
+    mv /var/lib/aide/aide.db.new /var/lib/aide/aide.db
+
+# ── Initialise rkhunter baseline ─────────────────────────────
+RUN rkhunter --propupd --nocolors 2>/dev/null || true
 
 # ── Create admin user ────────────────────────────────────────
 # Root login is disabled by SSH policy. This is the admin account.

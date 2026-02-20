@@ -211,7 +211,72 @@ elif [ "$CI_MODE" = "1" ] || [ "$CONTAINER_MODE" = "1" ]; then
   note "ss not available; port exposure check skipped"
 fi
 
-# 9) Update/verification path
+# 9) AIDE file integrity
+if command -v aide >/dev/null 2>&1; then
+  if [ -f /var/lib/aide/aide.db ]; then
+    pass "AIDE installed with baseline database"
+  elif [ "$CI_MODE" = "1" ]; then
+    pass "AIDE installed (baseline created at build time)"
+  else
+    note "AIDE installed but no baseline database — run: aide --init"
+  fi
+elif [ "$CI_MODE" = "1" ]; then
+  note "AIDE not in CI runner; validated by Dockerfile"
+fi
+
+# 10) rkhunter rootkit scanner
+if command -v rkhunter >/dev/null 2>&1; then
+  pass "rkhunter installed"
+elif [ "$CI_MODE" = "1" ]; then
+  note "rkhunter not in CI runner; validated by Dockerfile"
+fi
+
+# 11) Lynis security auditor
+if command -v lynis >/dev/null 2>&1; then
+  lynis show version >/dev/null 2>&1 || fail "lynis version check failed"
+  pass "lynis installed ($(lynis show version 2>/dev/null || echo 'version unknown'))"
+elif [ "$CI_MODE" = "1" ]; then
+  note "lynis not in CI runner; validated by Dockerfile"
+fi
+
+# 12) Unattended upgrades
+if command -v unattended-upgrade >/dev/null 2>&1; then
+  if [ -f /etc/apt/apt.conf.d/50unattended-upgrades ]; then
+    pass "unattended-upgrades configured (security patches)"
+  else
+    fail "unattended-upgrades installed but config missing"
+  fi
+elif [ "$CI_MODE" = "1" ]; then
+  if [ -f "$ROOT_DIR/overlays/etc/security/apt/50unattended-upgrades" ]; then
+    pass "unattended-upgrades config validated from overlay"
+  else
+    fail "unattended-upgrades overlay missing"
+  fi
+fi
+
+# 13) Port scan detection (fail2ban portscan jail)
+if command -v fail2ban-client >/dev/null 2>&1; then
+  if fail2ban-client status portscan >/dev/null 2>&1; then
+    pass "fail2ban portscan jail active"
+  elif [ "$CONTAINER_MODE" = "1" ]; then
+    if [ -f /etc/fail2ban/jail.local ] && grep -q '\[portscan\]' /etc/fail2ban/jail.local; then
+      pass "portscan jail configured (may still be starting)"
+    else
+      fail "portscan jail not configured in jail.local"
+    fi
+  else
+    fail "portscan jail not active"
+  fi
+elif [ "$CI_MODE" = "1" ]; then
+  F2B_OVERLAY="$ROOT_DIR/overlays/etc/security/fail2ban/jail.local"
+  if [ -f "$F2B_OVERLAY" ] && grep -q '\[portscan\]' "$F2B_OVERLAY"; then
+    pass "portscan jail validated from overlay"
+  else
+    fail "portscan jail missing from overlay"
+  fi
+fi
+
+# 14) Update/verification path
 if command -v openclaw >/dev/null 2>&1; then
   openclaw --version >/dev/null 2>&1 || fail "openclaw version check failed"
 

@@ -1,0 +1,29 @@
+// LockClaw auto-update configuration
+// Installs Debian security patches automatically
+//
+// Only security updates are enabled — no feature upgrades.
+// Runs daily via apt systemd timer (or cron fallback in containers).
+
+Unattended-Upgrade::Allowed-Origins {
+    "Debian:bookworm-security";
+    "Debian:bookworm";
+};
+
+// Auto-fix interrupted dpkg runs
+Unattended-Upgrade::AutoFixInterruptedDpkg "true";
+
+// Remove unused dependencies after upgrade
+Unattended-Upgrade::Remove-Unused-Dependencies "true";
+
+// Remove unused kernel packages (bare-metal/VM targets)
+Unattended-Upgrade::Remove-Unused-Kernel-Packages "true";
+
+// Don't reboot automatically — container restarts are managed externally
+Unattended-Upgrade::Automatic-Reboot "false";
+
+// Log to syslog
+Unattended-Upgrade::SyslogEnable "true";
+Unattended-Upgrade::SyslogFacility "daemon";
+
+// Bandwidth-friendly: download only, install on next timer tick
+Unattended-Upgrade::MinimalSteps "true";

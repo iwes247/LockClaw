@@ -31,6 +31,11 @@ ci/                       ← CI entrypoint; wired to GitHub Actions
 | Firewall | nftables drops all inbound; allows SSH (rate-limited), loopback, DHCP, established/related. Logged drops. | `overlays/etc/network/nftables.conf` |
 | SSH | Key-only auth. No root login. Modern ciphers only (chacha20-poly1305, aes256-gcm). MaxAuthTries 3. | `overlays/etc/security/sshd_config.d/10-lockclaw-hardening.conf` |
 | Brute-force | fail2ban bans IPs after 5 failed SSH attempts for 1 hour. | `overlays/etc/security/fail2ban/jail.local` |
+| Port scanning | nftables logs dropped packets; fail2ban detects repeated drops and bans the scanner's IP for 24 hours. | `overlays/etc/security/fail2ban/filter.d/portscan.conf` |
+| File integrity | AIDE monitors critical binaries and configs against a build-time baseline. Detects unauthorized modifications. | `overlays/etc/security/aide/aide.conf` |
+| Rootkit detection | rkhunter scans for known rootkits, backdoors, and suspicious files. | `overlays/etc/security/rkhunter/rkhunter.conf.local` |
+| Security audit | Lynis runs comprehensive hardening checks and produces a scored report. | Installed; run `lynis audit system --quick` |
+| Auto updates | unattended-upgrades applies Debian security patches automatically. | `overlays/etc/security/apt/50unattended-upgrades` |
 | Kernel | rp_filter, syncookies, no ICMP redirects, no source routing, ptrace restricted, BPF restricted, sysrq disabled. | `overlays/etc/security/sysctl.conf` |
 | Accounts | yescrypt password hashing. 90-day password rotation. umask 027. | `overlays/etc/security/login.defs` |
 | Sudo | PTY required. Full I/O logging to `/var/log/sudo.log`. 5-minute credential timeout. | `overlays/etc/security/sudoers.d/10-lockclaw-hardening` |
@@ -195,6 +200,14 @@ Workflow: `.github/workflows/build-and-smoke.yml` (read-only permissions).
 ## Auditing exposure
 
 ```bash
+# Full security scan (AIDE + rkhunter + Lynis)
+docker exec lockclaw /opt/lockclaw/scripts/security-scan.sh
+
+# Individual tools
+docker exec lockclaw /opt/lockclaw/scripts/security-scan.sh aide      # file integrity
+docker exec lockclaw /opt/lockclaw/scripts/security-scan.sh rkhunter  # rootkit scan
+docker exec lockclaw /opt/lockclaw/scripts/security-scan.sh lynis     # security audit
+
 # Check that all required policy files exist and contain correct values
 scripts/audit.sh
 

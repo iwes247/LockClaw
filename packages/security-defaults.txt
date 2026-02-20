@@ -6,4 +6,9 @@ sudo
 rsyslog
 nftables
 fail2ban
+aide
+lynis
+rkhunter
+unattended-upgrades
+apt-listchanges
 # apparmor — requires host kernel support; enable on bare-metal/VM targets
