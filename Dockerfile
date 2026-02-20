@@ -172,12 +172,12 @@ FROM base AS ollama
 LABEL org.opencontainers.image.description="LockClaw + Ollama local LLM engine"
 
 # ── Install Ollama ───────────────────────────────────────────
-# Direct binary from GitHub Releases — the install.sh script requires
-# systemd and fails silently in Docker builds. TARGETARCH is set by BuildKit.
-ARG TARGETARCH
-RUN curl -fsSL -o /usr/local/bin/ollama \
-      "https://github.com/ollama/ollama/releases/latest/download/ollama-linux-${TARGETARCH}" && \
-    chmod +x /usr/local/bin/ollama && \
+# The official install script downloads the correct binary for the arch
+# and places it in /usr/local/bin. The systemd service setup will fail
+# in Docker (no systemd) but the binary is still installed.
+# Requires ca-certificates (added to network-defaults.txt).
+RUN curl -fsSL https://ollama.com/install.sh | sh || true && \
+    command -v ollama && \
     ollama --version
 
 # ── Configure Ollama for loopback-only ───────────────────────
