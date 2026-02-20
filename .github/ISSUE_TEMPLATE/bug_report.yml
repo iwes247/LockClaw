@@ -1,0 +1,66 @@
+name: Bug Report
+description: Report a bug or unexpected behaviour in LockClaw
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report a bug. Please fill out the sections below so we can reproduce and fix the issue.
+
+  - type: input
+    id: version
+    attributes:
+      label: LockClaw version
+      description: "Image tag or commit SHA (e.g. `latest`, `629bbf2`)"
+      placeholder: "latest"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: environment
+    attributes:
+      label: Environment
+      description: Where are you running the container?
+      options:
+        - Docker (local)
+        - Docker Compose
+        - GitHub Codespace
+        - Kubernetes / k3s
+        - Other (describe below)
+    validations:
+      required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Describe the bug
+      description: A clear description of what happened and what you expected instead.
+      placeholder: "When I run … I expected … but instead …"
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps to reproduce
+      description: Minimal steps to trigger the bug.
+      value: |
+        1. `docker run ...`
+        2. 
+        3. 
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant logs / output
+      description: Paste any error messages or container logs. This will be formatted as code automatically.
+      render: shell
+
+  - type: textarea
+    id: extra
+    attributes:
+      label: Additional context
+      description: Anything else — screenshots, host OS, Docker version, etc.
