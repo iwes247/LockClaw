@@ -1,0 +1,29 @@
+# Build artifacts
+.upstream/
+image-builder/output/
+*.stub
+
+# Git
+.git
+.gitignore
+
+# Docs not needed in image
+*.md
+!docs/*.md
+LICENSE
+
+# IDE/editor
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Sensitive files — never copy into image
+*.pem
+*.key
+id_rsa*
+id_ed25519*
+.env
+.env.*
+image-builder/config/flavor.env

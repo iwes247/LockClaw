@@ -1,15 +1,29 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Uses only documented OpenClaw build/install paths:
-# - Docker: docker build + compose onboard/up
-# - Nix: home-manager switch with nix-openclaw flake
+# MoltClawLinux build script
+# Usage:
+#   scripts/build.sh              # builds MoltClawLinux hardened image (default)
+#   scripts/build.sh moltclaw     # same as above
+#   scripts/build.sh upstream     # clones + builds upstream OpenClaw only
+#   scripts/build.sh nix          # Nix home-manager path
 
-MODE="${1:-docker}"
+MODE="${1:-moltclaw}"
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+IMAGE_TAG="${IMAGE_TAG:-moltclaw:latest}"
 
 case "$MODE" in
-  docker)
+  moltclaw)
+    echo "Building MoltClawLinux hardened image..."
+    (cd "$ROOT_DIR" && docker build -t "$IMAGE_TAG" .)
+    echo ""
+    echo "Built: $IMAGE_TAG"
+    echo "Run:   docker run -d --name moltclaw --cap-add NET_ADMIN --cap-add AUDIT_WRITE -p 2222:22 $IMAGE_TAG"
+    echo "Shell: docker exec -it moltclaw bash"
+    echo "Test:  docker exec moltclaw /opt/moltclaw/scripts/test-smoke.sh"
+    ;;
+
+  upstream)
     OPENCLAW_REF="${OPENCLAW_REF:-v2026.2.19}"
     OPENCLAW_DIR="${OPENCLAW_DIR:-$ROOT_DIR/.upstream/openclaw}"
     mkdir -p "$(dirname "$OPENCLAW_DIR")"
@@ -49,7 +63,7 @@ case "$MODE" in
     ;;
 
   *)
-    echo "Usage: $0 [docker|nix]" >&2
+    echo "Usage: $0 [moltclaw|upstream|nix]" >&2
     exit 1
     ;;
 esac

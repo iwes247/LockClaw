@@ -53,21 +53,49 @@ Remote access is via SSH tunnel or Tailscale — the gateway is never exposed di
 
 ```bash
 git clone https://github.com/iwes247/MClLinux.git && cd MClLinux
-scripts/build.sh docker
+scripts/build.sh            # builds moltclaw:latest
 ```
 
-### Build (Nix)
+### Run
+
+```bash
+docker run -d --name moltclaw \
+  --cap-add NET_ADMIN \
+  --cap-add AUDIT_WRITE \
+  -p 2222:22 \
+  moltclaw:latest
+```
+
+SSH in (after adding your public key):
+```bash
+ssh -p 2222 root@localhost    # will be rejected — root login is disabled
+ssh -p 2222 admin@localhost   # key-only auth
+```
+
+### Validate
+
+```bash
+# Run smoke tests inside the running container
+docker exec moltclaw /opt/moltclaw/scripts/test-smoke.sh
+
+# Check what's listening
+docker exec moltclaw ss -tlnp
+
+# Check firewall
+docker exec moltclaw nft list ruleset
+```
+
+### Build (Nix, alternative)
 
 ```bash
 export HM_TARGET=youruser
 scripts/build.sh nix
 ```
 
-### Validate
+### Build upstream OpenClaw only
 
 ```bash
-scripts/audit.sh          # policy structure + content checks
-scripts/test-smoke.sh     # runtime: boot, DHCP, DNS, NTP, firewall, SSH, fail2ban, port scan
+scripts/build.sh upstream     # clones + builds OpenClaw without MoltClaw hardening
 ```
 
 ### Build artifacts (ISO/qcow2/raw)
@@ -85,8 +113,8 @@ make -C image-builder raw
 ### Run in a VM
 
 1. Spin up a Linux VM (x86_64 or arm64) with Docker.
-2. Clone this repo, run `scripts/build.sh docker`.
-3. Run `scripts/test-smoke.sh` to verify policy enforcement.
+2. Clone this repo, run `scripts/build.sh`.
+3. Run the container, then `docker exec moltclaw /opt/moltclaw/scripts/test-smoke.sh`.
 
 ## Supply chain
 
@@ -99,7 +127,7 @@ make -C image-builder raw
 Every push and PR runs:
 1. **ShellCheck** — lint all shell scripts.
 2. **Audit** — verify overlay files exist and policy content is correct.
-3. **Smoke tests** — validate firewall, SSH, DNS, NTP, fail2ban, and exposure in CI mode.
+3. **Build** — build the Docker image, start a container, run smoke tests inside it, verify firewall and SSH hardening, check listening ports.
 
 Workflow: `.github/workflows/build-and-smoke.yml` (read-only permissions).
 
