@@ -207,4 +207,4 @@ ss -tlnp
 
 ## License
 
-TBD
+MIT — see [LICENSE](LICENSE).
