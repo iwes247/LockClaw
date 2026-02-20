@@ -60,7 +60,7 @@ docker pull ghcr.io/iwes247/lockclaw:latest
 ### Build from source (alternative)
 
 ```bash
-git clone https://github.com/iwes247/MClLinux.git && cd MClLinux
+git clone https://github.com/iwes247/LockClaw.git && cd LockClaw
 scripts/build.sh            # builds lockclaw:latest
 ```
 
