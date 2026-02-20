@@ -2,11 +2,13 @@
 
 A hardened Linux distribution layer built on [OpenClaw](https://github.com/openclaw/openclaw). MoltClawLinux enforces a deny-by-default security model and ships production-ready networking defaults out of the box — no manual hardening required after deployment.
 
+The container ships with the **OpenClaw AI gateway** (`ws://127.0.0.1:18789`) and **[claude-mem](https://github.com/thedotmack/claude-mem)** persistent memory pre-installed. Provide an API key and you have a working AI assistant with memory that persists across sessions.
+
 ## Why this exists
 
 Most Linux setups ship permissive defaults and leave hardening as an exercise for the operator. MoltClawLinux inverts that: security and networking policy are applied at build time through declarative overlays, validated by automated tests, and enforced by the firewall, SSH, and audit subsystems from first boot.
 
-The base layer is OpenClaw `v2026.2.19` (pinned, overridable via `OPENCLAW_REF`). Builds run through Docker or Nix. Image-builder stubs are in place for ISO/qcow2/raw artifact targets.
+The base layer is OpenClaw `v2026.2.19` (pinned, overridable via `OPENCLAW_REF`). The gateway runs on Node.js 22 with claude-mem for persistent memory. Builds run through Docker or Nix. Image-builder stubs are in place for ISO/qcow2/raw artifact targets.
 
 ## Architecture
 
@@ -63,6 +65,7 @@ docker run -d --name moltclaw \
   --cap-add NET_ADMIN \
   --cap-add AUDIT_WRITE \
   -e SSH_PUBLIC_KEY="$(cat ~/.ssh/id_ed25519.pub)" \
+  -e ANTHROPIC_API_KEY="sk-ant-..." \
   -p 2222:22 \
   moltclaw:latest
 ```
@@ -73,6 +76,13 @@ ssh -p 2222 moltclaw@localhost
 ```
 
 The `moltclaw` user has sudo access. Root login is disabled. Password auth is disabled.
+
+The OpenClaw gateway starts automatically on `ws://127.0.0.1:18789` (loopback only). Access it through SSH tunnel:
+
+```bash
+ssh -p 2222 -L 18789:127.0.0.1:18789 moltclaw@localhost
+# Gateway is now available at ws://127.0.0.1:18789 on your machine
+```
 
 ### Validate
 
@@ -117,6 +127,40 @@ make -C image-builder raw
 1. Spin up a Linux VM (x86_64 or arm64) with Docker.
 2. Clone this repo, run `scripts/build.sh`.
 3. Run the container, then `docker exec moltclaw /opt/moltclaw/scripts/test-smoke.sh`.
+
+## Environment variables
+
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `SSH_PUBLIC_KEY` | Yes | Public key injected into `moltclaw` user's `authorized_keys` |
+| `ANTHROPIC_API_KEY` | For AI | API key for Anthropic models (claude-opus-4-6 default) |
+| `OPENAI_API_KEY` | Optional | API key for OpenAI models |
+| `OPENCLAW_REF` | No | Override pinned OpenClaw version (default: `v2026.2.19`) |
+| `OPENCLAW_SHA` | No | Commit SHA for supply-chain verification |
+
+## OpenClaw gateway
+
+The gateway binds to loopback only (`127.0.0.1:18789`) and is never directly exposed. It supports multiple AI model providers — set the appropriate API key environment variable.
+
+**claude-mem** provides persistent memory across sessions. Memory is stored at `/home/moltclaw/.openclaw/memory/` and survives container restarts if you mount a volume:
+
+```bash
+docker run -d --name moltclaw \
+  --cap-add NET_ADMIN --cap-add AUDIT_WRITE \
+  -e SSH_PUBLIC_KEY="$(cat ~/.ssh/id_ed25519.pub)" \
+  -e ANTHROPIC_API_KEY="sk-ant-..." \
+  -v moltclaw-memory:/home/moltclaw/.openclaw \
+  -p 2222:22 \
+  moltclaw:latest
+```
+
+After first boot, configure channels and onboard:
+
+```bash
+ssh -p 2222 moltclaw@localhost
+openclaw onboard            # interactive setup wizard
+openclaw gateway status     # check gateway health
+```
 
 ## Supply chain
 

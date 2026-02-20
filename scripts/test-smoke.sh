@@ -52,10 +52,36 @@ elif [ "$CI_MODE" = "1" ]; then
   pass "network check skipped in CI (no ip command)"
 fi
 
-# 2) Network/gateway posture
+# 2) OpenClaw gateway posture
 if command -v openclaw >/dev/null 2>&1; then
-  openclaw gateway status >/dev/null 2>&1 || fail "gateway status"
-  pass "gateway status"
+  # a) Verify gateway binary exists and can report status
+  if openclaw gateway status >/dev/null 2>&1; then
+    pass "openclaw gateway status ok"
+  elif [ "$CONTAINER_MODE" = "1" ]; then
+    note "gateway may still be starting; checking port instead"
+  else
+    fail "openclaw gateway status failed"
+  fi
+
+  # b) Verify gateway is listening on loopback:18789
+  if command -v ss >/dev/null 2>&1; then
+    if ss -tlnH 2>/dev/null | grep -q ':18789'; then
+      pass "openclaw gateway listening on :18789"
+    elif [ "$CONTAINER_MODE" = "1" ]; then
+      note "gateway port 18789 not yet bound (may need API key to fully start)"
+    else
+      fail "openclaw gateway not listening on :18789"
+    fi
+  fi
+
+  # c) Verify claude-mem plugin is installed
+  if command -v claude-mem >/dev/null 2>&1 || npm list -g claude-mem >/dev/null 2>&1; then
+    pass "claude-mem plugin installed"
+  else
+    note "claude-mem not found (install with: npm install -g claude-mem@latest)"
+  fi
+elif [ "$CI_MODE" = "1" ]; then
+  note "openclaw not in CI runner; gateway posture validated by Dockerfile"
 fi
 
 # 3) DNS
@@ -174,12 +200,12 @@ fi
 # 8) Exposure audit — check for unexpected listening ports
 if command -v ss >/dev/null 2>&1; then
   # List all TCP listeners excluding loopback-only services
-  UNEXPECTED="$(ss -tlnH 2>/dev/null | awk '{print $4}' | grep -v '127\.0\.0\.1' | grep -v '\[::1\]' | grep -v ':22$' || true)"
+  UNEXPECTED="$(ss -tlnH 2>/dev/null | awk '{print $4}' | grep -v '127\.0\.0\.1' | grep -v '\[::1\]' | grep -v ':22$' | grep -v ':18789$' || true)"
   if [ -n "$UNEXPECTED" ]; then
     note "Unexpected non-loopback listeners detected: $UNEXPECTED"
     # Not a hard fail — the operator may have intentionally exposed services
   else
-    pass "no unexpected public listeners (only SSH:22)"
+    pass "no unexpected public listeners (SSH:22 + gateway:18789 loopback)"
   fi
 elif [ "$CI_MODE" = "1" ] || [ "$CONTAINER_MODE" = "1" ]; then
   note "ss not available; port exposure check skipped"

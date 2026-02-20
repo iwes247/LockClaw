@@ -80,6 +80,20 @@ start_services() {
         fi
     fi
 
+    # ── OpenClaw gateway ──
+    if command -v openclaw >/dev/null 2>&1; then
+        # Start gateway in background as the moltclaw user
+        export HOME=/home/moltclaw
+        su moltclaw -c 'openclaw gateway --port 18789 &' 2>/dev/null
+        # Give it a moment to bind
+        sleep 2
+        if ss -tlnH 2>/dev/null | grep -q ':18789'; then
+            log "OpenClaw gateway started (ws://127.0.0.1:18789)"
+        else
+            log "WARN: OpenClaw gateway may still be starting on :18789"
+        fi
+    fi
+
     log ""
     log "╔══════════════════════════════════════════════════════════╗"
     log "║  MoltClawLinux ready                                    ║"
@@ -87,8 +101,10 @@ start_services() {
     log "║  Admin user:  moltclaw (key-auth only)                  ║"
     log "║  SSH:         port 22 (rate-limited, modern ciphers)    ║"
     log "║  Firewall:    deny-by-default (nftables)                ║"
-    log "║  Gateway:     127.0.0.1:18789 (loopback only)          ║"
+    log "║  Gateway:     ws://127.0.0.1:18789 (loopback only)     ║"
+    log "║  Memory:      claude-mem (persistent across sessions)   ║"
     log "║                                                         ║"
+    log "║  Configure:   openclaw onboard                          ║"
     log "║  Validate:    /opt/moltclaw/scripts/test-smoke.sh      ║"
     log "╚══════════════════════════════════════════════════════════╝"
     log ""
