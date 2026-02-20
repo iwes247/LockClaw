@@ -1,5 +1,5 @@
 {
-  "name": "MoltClawLinux Dev",
+  "name": "LockClaw Dev",
   "image": "mcr.microsoft.com/devcontainers/base:bookworm",
 
   "features": {
@@ -22,7 +22,7 @@
     }
   },
 
-  "postCreateCommand": "echo '✅ MoltClawLinux Codespace ready — run: docker build -t moltclaw:latest .'",
+  "postCreateCommand": "echo '✅ LockClaw Codespace ready — run: docker build -t lockclaw:latest .'",
 
   "remoteUser": "vscode"
 }

@@ -7,13 +7,13 @@ required=(
   "$ROOT_DIR/overlays/etc/security/sysctl.conf"
   "$ROOT_DIR/overlays/etc/security/limits.conf"
   "$ROOT_DIR/overlays/etc/security/login.defs"
-  "$ROOT_DIR/overlays/etc/security/sudoers.d/10-moltclaw-hardening"
-  "$ROOT_DIR/overlays/etc/security/sshd_config.d/10-moltclaw-hardening.conf"
+  "$ROOT_DIR/overlays/etc/security/sudoers.d/10-lockclaw-hardening"
+  "$ROOT_DIR/overlays/etc/security/sshd_config.d/10-lockclaw-hardening.conf"
   "$ROOT_DIR/overlays/etc/security/audit/audit.rules"
   "$ROOT_DIR/overlays/etc/security/logging/journald.conf"
   "$ROOT_DIR/overlays/etc/security/fail2ban/jail.local"
   "$ROOT_DIR/overlays/etc/security/logrotate.d/sudo"
-  "$ROOT_DIR/overlays/etc/security/rsyslog.d/50-moltclaw.conf"
+  "$ROOT_DIR/overlays/etc/security/rsyslog.d/50-lockclaw.conf"
   "$ROOT_DIR/overlays/etc/network/NetworkManager.conf"
   "$ROOT_DIR/overlays/etc/network/resolved.conf"
   "$ROOT_DIR/overlays/etc/network/timesyncd.conf"
@@ -30,7 +30,7 @@ echo "All required overlay files are present."
 echo "Validating policy content..."
 
 # SSH: must disable root login and password auth
-SSH_OVERLAY="$ROOT_DIR/overlays/etc/security/sshd_config.d/10-moltclaw-hardening.conf"
+SSH_OVERLAY="$ROOT_DIR/overlays/etc/security/sshd_config.d/10-lockclaw-hardening.conf"
 grep -Eqi '^\s*PermitRootLogin\s+no' "$SSH_OVERLAY" || { echo "FAIL: SSH overlay missing PermitRootLogin no"; exit 1; }
 grep -Eqi '^\s*PasswordAuthentication\s+no' "$SSH_OVERLAY" || { echo "FAIL: SSH overlay missing PasswordAuthentication no"; exit 1; }
 

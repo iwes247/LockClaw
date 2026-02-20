@@ -1,4 +1,4 @@
-# MoltClaw Linux logrotate for sudo audit log
+# LockClaw logrotate for sudo audit log
 /var/log/sudo.log {
     rotate 12
     monthly

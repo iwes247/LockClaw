@@ -1,4 +1,4 @@
-# MoltClaw Linux audit baseline
+# LockClaw audit baseline
 -D
 -b 8192
 -f 1

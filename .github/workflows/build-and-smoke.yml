@@ -33,7 +33,7 @@ jobs:
 
       - name: Smoke tests (CI mode — overlay checks)
         env:
-          MOLTCLAW_CI: "1"
+          LOCKCLAW_CI: "1"
         run: ./ci/build-and-smoke.sh
 
   build:
@@ -43,38 +43,38 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Build MoltClawLinux image
-        run: docker build -t moltclaw:ci .
+      - name: Build LockClaw image
+        run: docker build -t lockclaw:ci .
 
       - name: Start container
         run: |
-          docker run -d --name moltclaw-ci \
+          docker run -d --name lockclaw-ci \
             --cap-add NET_ADMIN \
             --cap-add AUDIT_WRITE \
-            moltclaw:ci
+            lockclaw:ci
 
       - name: Wait for services
         run: sleep 3
 
       - name: Run smoke tests inside container
-        run: docker exec moltclaw-ci /opt/moltclaw/scripts/test-smoke.sh
+        run: docker exec lockclaw-ci /opt/lockclaw/scripts/test-smoke.sh
 
       - name: Verify firewall loaded
-        run: docker exec moltclaw-ci nft list ruleset | grep -q 'policy drop'
+        run: docker exec lockclaw-ci nft list ruleset | grep -q 'policy drop'
 
       - name: Verify SSH hardening
-        run: docker exec moltclaw-ci sshd -T | grep -qi 'permitrootlogin no'
+        run: docker exec lockclaw-ci sshd -T | grep -qi 'permitrootlogin no'
 
       - name: Check listening ports
         run: |
           echo "Listening ports:"
-          docker exec moltclaw-ci ss -tlnp
+          docker exec lockclaw-ci ss -tlnp
           # Only SSH should be listening on non-loopback
-          UNEXPECTED=$(docker exec moltclaw-ci ss -tlnH 2>/dev/null | awk '{print $4}' | grep -v '127.0.0.1' | grep -v '\[::1\]' | grep -v ':22$' | grep -v ':18789$' || true)
+          UNEXPECTED=$(docker exec lockclaw-ci ss -tlnH 2>/dev/null | awk '{print $4}' | grep -v '127.0.0.1' | grep -v '\[::1\]' | grep -v ':22$' | grep -v ':18789$' || true)
           if [ -n "$UNEXPECTED" ]; then
             echo "WARN: Unexpected listeners: $UNEXPECTED"
           fi
 
       - name: Cleanup
         if: always()
-        run: docker rm -f moltclaw-ci 2>/dev/null || true
+        run: docker rm -f lockclaw-ci 2>/dev/null || true

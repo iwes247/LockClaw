@@ -1,6 +1,6 @@
-# MoltClawLinux Security + Networking Design Spec
+# LockClaw Security + Networking Design Spec
 
-MoltClawLinux is a security- and networking-first Linux flavor layout for running OpenClaw.
+LockClaw is a security- and networking-first Linux flavor layout for running OpenClaw.
 
 ## Authoritative OpenClaw facts used
 

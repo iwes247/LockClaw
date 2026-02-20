@@ -1,7 +1,7 @@
 .PHONY: help validate iso qcow2 raw clean
 
 help:
-	@echo "MoltClawLinux image-builder stubs"
+	@echo "LockClaw image-builder stubs"
 	@echo "Targets:"
 	@echo "  make validate  # validates required inputs"
 	@echo "  make iso       # ISO build stub"

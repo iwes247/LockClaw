@@ -1,4 +1,4 @@
-# MoltClaw Linux sudo hardening
+# LockClaw sudo hardening
 Defaults use_pty
 Defaults logfile="/var/log/sudo.log"
 Defaults log_input,log_output

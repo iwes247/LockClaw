@@ -12,7 +12,7 @@ permissions:
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository_owner }}/moltclaw
+  IMAGE_NAME: ${{ github.repository_owner }}/lockclaw
 
 jobs:
   build-and-push:
@@ -54,10 +54,10 @@ jobs:
 
       - name: Smoke test published image
         run: |
-          docker run -d --name moltclaw-ghcr \
+          docker run -d --name lockclaw-ghcr \
             --cap-add NET_ADMIN \
             --cap-add AUDIT_WRITE \
             ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
           sleep 3
-          docker exec moltclaw-ghcr /opt/moltclaw/scripts/test-smoke.sh
-          docker rm -f moltclaw-ghcr
+          docker exec lockclaw-ghcr /opt/lockclaw/scripts/test-smoke.sh
+          docker rm -f lockclaw-ghcr

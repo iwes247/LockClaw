@@ -1,20 +1,20 @@
-# MoltClawLinux — Hardened container image
+# LockClaw — Hardened container image
 # Secure-by-default OS layer for OpenClaw gateway hosting
 #
-# Build:  docker build -t moltclaw:latest .
-# Run:    docker run -d --name moltclaw --cap-add NET_ADMIN --cap-add AUDIT_WRITE -p 2222:22 moltclaw:latest
-# Shell:  docker exec -it moltclaw bash
-# Test:   docker exec moltclaw /opt/moltclaw/scripts/test-smoke.sh
+# Build:  docker build -t lockclaw:latest .
+# Run:    docker run -d --name lockclaw --cap-add NET_ADMIN --cap-add AUDIT_WRITE -p 2222:22 lockclaw:latest
+# Shell:  docker exec -it lockclaw bash
+# Test:   docker exec lockclaw /opt/lockclaw/scripts/test-smoke.sh
 
 FROM debian:bookworm-slim AS base
 
 LABEL maintainer="iwes247"
-LABEL org.opencontainers.image.title="MoltClawLinux"
+LABEL org.opencontainers.image.title="LockClaw"
 LABEL org.opencontainers.image.description="Hardened Linux layer for OpenClaw gateway hosting"
 
 # ── Environment ──────────────────────────────────────────────
 ENV DEBIAN_FRONTEND=noninteractive
-ENV MOLTCLAW_HOME=/opt/moltclaw
+ENV LOCKCLAW_HOME=/opt/lockclaw
 
 # ── Install OS packages ─────────────────────────────────────
 # Two-phase: copy manifests first for layer caching, then install
@@ -59,12 +59,12 @@ RUN mkdir -p /etc/sysctl.d \
              /run/sshd
 
 # ── Apply security overlays ─────────────────────────────────
-COPY overlays/etc/security/sysctl.conf          /etc/sysctl.d/99-moltclaw.conf
-COPY overlays/etc/security/limits.conf          /etc/security/limits.d/99-moltclaw.conf
+COPY overlays/etc/security/sysctl.conf          /etc/sysctl.d/99-lockclaw.conf
+COPY overlays/etc/security/limits.conf          /etc/security/limits.d/99-lockclaw.conf
 COPY overlays/etc/security/sudoers.d/           /etc/sudoers.d/
 COPY overlays/etc/security/sshd_config.d/       /etc/ssh/sshd_config.d/
-COPY overlays/etc/security/audit/audit.rules    /etc/audit/rules.d/99-moltclaw.rules
-COPY overlays/etc/security/logging/journald.conf /etc/systemd/journald.conf.d/99-moltclaw.conf
+COPY overlays/etc/security/audit/audit.rules    /etc/audit/rules.d/99-lockclaw.rules
+COPY overlays/etc/security/logging/journald.conf /etc/systemd/journald.conf.d/99-lockclaw.conf
 COPY overlays/etc/security/fail2ban/jail.local  /etc/fail2ban/jail.local
 COPY overlays/etc/security/rsyslog.d/           /etc/rsyslog.d/
 COPY overlays/etc/security/logrotate.d/sudo     /etc/logrotate.d/sudo
@@ -98,31 +98,31 @@ RUN ssh-keygen -A
 # ── Create admin user ────────────────────────────────────────
 # Root login is disabled by SSH policy. This is the admin account.
 # The operator must inject their public key at runtime.
-RUN useradd -m -s /bin/bash -G sudo moltclaw && \
-    mkdir -p /home/moltclaw/.ssh && \
-    chmod 700 /home/moltclaw/.ssh && \
-    chown -R moltclaw:moltclaw /home/moltclaw/.ssh && \
+RUN useradd -m -s /bin/bash -G sudo lockclaw && \
+    mkdir -p /home/lockclaw/.ssh && \
+    chmod 700 /home/lockclaw/.ssh && \
+    chown -R lockclaw:lockclaw /home/lockclaw/.ssh && \
     # Lock password (key-only auth enforced by sshd_config)
-    passwd -l moltclaw
+    passwd -l lockclaw
 
 # ── Configure OpenClaw workspace ─────────────────────────────
 # Minimal config: model set via env var at runtime, gateway on loopback
-RUN mkdir -p /home/moltclaw/.openclaw/workspace/skills && \
+RUN mkdir -p /home/lockclaw/.openclaw/workspace/skills && \
     echo '{"gateway":{"port":18789,"bind":"loopback"},"agent":{"model":"anthropic/claude-opus-4-6"}}' \
-      > /home/moltclaw/.openclaw/openclaw.json && \
-    chown -R moltclaw:moltclaw /home/moltclaw/.openclaw
+      > /home/lockclaw/.openclaw/openclaw.json && \
+    chown -R lockclaw:lockclaw /home/lockclaw/.openclaw
 
 # ── Pre-install claude-mem plugin ────────────────────────────
 # Persistent memory across sessions — the killer feature for self-hosted AI
 RUN npm install -g claude-mem@latest && \
     npm cache clean --force
 
-# ── Copy MoltClawLinux repo tooling into the image ───────────
-COPY scripts/  ${MOLTCLAW_HOME}/scripts/
-COPY docs/     ${MOLTCLAW_HOME}/docs/
-COPY packages/ ${MOLTCLAW_HOME}/packages/
-COPY overlays/ ${MOLTCLAW_HOME}/overlays/
-RUN chmod +x ${MOLTCLAW_HOME}/scripts/*.sh
+# ── Copy LockClaw repo tooling into the image ───────────
+COPY scripts/  ${LOCKCLAW_HOME}/scripts/
+COPY docs/     ${LOCKCLAW_HOME}/docs/
+COPY packages/ ${LOCKCLAW_HOME}/packages/
+COPY overlays/ ${LOCKCLAW_HOME}/overlays/
+RUN chmod +x ${LOCKCLAW_HOME}/scripts/*.sh
 
 # ── Entrypoint ───────────────────────────────────────────────
 COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh

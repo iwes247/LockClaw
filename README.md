@@ -1,12 +1,12 @@
-# MoltClawLinux
+# LockClaw
 
-A hardened Linux distribution layer built on [OpenClaw](https://github.com/openclaw/openclaw). MoltClawLinux enforces a deny-by-default security model and ships production-ready networking defaults out of the box — no manual hardening required after deployment.
+A hardened Linux distribution layer built on [OpenClaw](https://github.com/openclaw/openclaw). LockClaw enforces a deny-by-default security model and ships production-ready networking defaults out of the box — no manual hardening required after deployment.
 
 The container ships with the **OpenClaw AI gateway** (`ws://127.0.0.1:18789`) and **[claude-mem](https://github.com/thedotmack/claude-mem)** persistent memory pre-installed. Provide an API key and you have a working AI assistant with memory that persists across sessions.
 
 ## Why this exists
 
-Most Linux setups ship permissive defaults and leave hardening as an exercise for the operator. MoltClawLinux inverts that: security and networking policy are applied at build time through declarative overlays, validated by automated tests, and enforced by the firewall, SSH, and audit subsystems from first boot.
+Most Linux setups ship permissive defaults and leave hardening as an exercise for the operator. LockClaw inverts that: security and networking policy are applied at build time through declarative overlays, validated by automated tests, and enforced by the firewall, SSH, and audit subsystems from first boot.
 
 The base layer is OpenClaw `v2026.2.19` (pinned, overridable via `OPENCLAW_REF`). The gateway runs on Node.js 22 with claude-mem for persistent memory. Builds run through Docker or Nix. Image-builder stubs are in place for ISO/qcow2/raw artifact targets.
 
@@ -29,11 +29,11 @@ ci/                       ← CI entrypoint; wired to GitHub Actions
 | Layer | What it does | Config |
 |-------|-------------|--------|
 | Firewall | nftables drops all inbound; allows SSH (rate-limited), loopback, DHCP, established/related. Logged drops. | `overlays/etc/network/nftables.conf` |
-| SSH | Key-only auth. No root login. Modern ciphers only (chacha20-poly1305, aes256-gcm). MaxAuthTries 3. | `overlays/etc/security/sshd_config.d/10-moltclaw-hardening.conf` |
+| SSH | Key-only auth. No root login. Modern ciphers only (chacha20-poly1305, aes256-gcm). MaxAuthTries 3. | `overlays/etc/security/sshd_config.d/10-lockclaw-hardening.conf` |
 | Brute-force | fail2ban bans IPs after 5 failed SSH attempts for 1 hour. | `overlays/etc/security/fail2ban/jail.local` |
 | Kernel | rp_filter, syncookies, no ICMP redirects, no source routing, ptrace restricted, BPF restricted, sysrq disabled. | `overlays/etc/security/sysctl.conf` |
 | Accounts | yescrypt password hashing. 90-day password rotation. umask 027. | `overlays/etc/security/login.defs` |
-| Sudo | PTY required. Full I/O logging to `/var/log/sudo.log`. 5-minute credential timeout. | `overlays/etc/security/sudoers.d/10-moltclaw-hardening` |
+| Sudo | PTY required. Full I/O logging to `/var/log/sudo.log`. 5-minute credential timeout. | `overlays/etc/security/sudoers.d/10-lockclaw-hardening` |
 | Audit | auditd watches `/etc/passwd`, `/etc/shadow`, `/etc/sudoers`, `/etc/ssh/sshd_config`, nftables config, privilege escalation binaries. | `overlays/etc/security/audit/audit.rules` |
 | Logging | journald with persistent storage + FSS sealing. rsyslog forwards auth/kern/daemon logs. logrotate on sudo.log. | `overlays/etc/security/logging/journald.conf` |
 
@@ -54,39 +54,39 @@ Remote access is via SSH tunnel or Tailscale — the gateway is never exposed di
 ### Pull (recommended)
 
 ```bash
-docker pull ghcr.io/iwes247/moltclaw:latest
+docker pull ghcr.io/iwes247/lockclaw:latest
 ```
 
 ### Build from source (alternative)
 
 ```bash
 git clone https://github.com/iwes247/MClLinux.git && cd MClLinux
-scripts/build.sh            # builds moltclaw:latest
+scripts/build.sh            # builds lockclaw:latest
 ```
 
 ### Run
 
 ```bash
-docker run -d --name moltclaw \
+docker run -d --name lockclaw \
   --cap-add NET_ADMIN \
   --cap-add AUDIT_WRITE \
   -e SSH_PUBLIC_KEY="$(cat ~/.ssh/id_ed25519.pub)" \
   -e ANTHROPIC_API_KEY="sk-ant-..." \
   -p 2222:22 \
-  moltclaw:latest
+  lockclaw:latest
 ```
 
 SSH in:
 ```bash
-ssh -p 2222 moltclaw@localhost
+ssh -p 2222 lockclaw@localhost
 ```
 
-The `moltclaw` user has sudo access. Root login is disabled. Password auth is disabled.
+The `lockclaw` user has sudo access. Root login is disabled. Password auth is disabled.
 
 The OpenClaw gateway starts automatically on `ws://127.0.0.1:18789` (loopback only). Access it through SSH tunnel:
 
 ```bash
-ssh -p 2222 -L 18789:127.0.0.1:18789 moltclaw@localhost
+ssh -p 2222 -L 18789:127.0.0.1:18789 lockclaw@localhost
 # Gateway is now available at ws://127.0.0.1:18789 on your machine
 ```
 
@@ -94,13 +94,13 @@ ssh -p 2222 -L 18789:127.0.0.1:18789 moltclaw@localhost
 
 ```bash
 # Run smoke tests inside the running container
-docker exec moltclaw /opt/moltclaw/scripts/test-smoke.sh
+docker exec lockclaw /opt/lockclaw/scripts/test-smoke.sh
 
 # Check what's listening
-docker exec moltclaw ss -tlnp
+docker exec lockclaw ss -tlnp
 
 # Check firewall
-docker exec moltclaw nft list ruleset
+docker exec lockclaw nft list ruleset
 ```
 
 ### Build (Nix, alternative)
@@ -113,7 +113,7 @@ scripts/build.sh nix
 ### Build upstream OpenClaw only
 
 ```bash
-scripts/build.sh upstream     # clones + builds OpenClaw without MoltClaw hardening
+scripts/build.sh upstream     # clones + builds OpenClaw without LockClaw hardening
 ```
 
 ### Build artifacts (ISO/qcow2/raw)
@@ -132,13 +132,13 @@ make -C image-builder raw
 
 1. Spin up a Linux VM (x86_64 or arm64) with Docker.
 2. Clone this repo, run `scripts/build.sh`.
-3. Run the container, then `docker exec moltclaw /opt/moltclaw/scripts/test-smoke.sh`.
+3. Run the container, then `docker exec lockclaw /opt/lockclaw/scripts/test-smoke.sh`.
 
 ## Environment variables
 
 | Variable | Required | Description |
 |----------|----------|-------------|
-| `SSH_PUBLIC_KEY` | Yes | Public key injected into `moltclaw` user's `authorized_keys` |
+| `SSH_PUBLIC_KEY` | Yes | Public key injected into `lockclaw` user's `authorized_keys` |
 | `ANTHROPIC_API_KEY` | For AI | API key for Anthropic models (claude-opus-4-6 default) |
 | `OPENAI_API_KEY` | Optional | API key for OpenAI models |
 | `OPENCLAW_REF` | No | Override pinned OpenClaw version (default: `v2026.2.19`) |
@@ -148,22 +148,22 @@ make -C image-builder raw
 
 The gateway binds to loopback only (`127.0.0.1:18789`) and is never directly exposed. It supports multiple AI model providers — set the appropriate API key environment variable.
 
-**claude-mem** provides persistent memory across sessions. Memory is stored at `/home/moltclaw/.openclaw/memory/` and survives container restarts if you mount a volume:
+**claude-mem** provides persistent memory across sessions. Memory is stored at `/home/lockclaw/.openclaw/memory/` and survives container restarts if you mount a volume:
 
 ```bash
-docker run -d --name moltclaw \
+docker run -d --name lockclaw \
   --cap-add NET_ADMIN --cap-add AUDIT_WRITE \
   -e SSH_PUBLIC_KEY="$(cat ~/.ssh/id_ed25519.pub)" \
   -e ANTHROPIC_API_KEY="sk-ant-..." \
-  -v moltclaw-memory:/home/moltclaw/.openclaw \
+  -v lockclaw-memory:/home/lockclaw/.openclaw \
   -p 2222:22 \
-  moltclaw:latest
+  lockclaw:latest
 ```
 
 After first boot, configure channels and onboard:
 
 ```bash
-ssh -p 2222 moltclaw@localhost
+ssh -p 2222 lockclaw@localhost
 openclaw onboard            # interactive setup wizard
 openclaw gateway status     # check gateway health
 ```
@@ -198,7 +198,7 @@ Workflow: `.github/workflows/build-and-smoke.yml` (read-only permissions).
 # Check that all required policy files exist and contain correct values
 scripts/audit.sh
 
-# Runtime validation (or set MOLTCLAW_CI=1 for overlay-based checks)
+# Runtime validation (or set LOCKCLAW_CI=1 for overlay-based checks)
 scripts/test-smoke.sh
 
 # What's actually listening?

@@ -6,7 +6,7 @@ pass() { echo "PASS: $*"; }
 note() { echo "NOTE: $*"; }
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-CI_MODE="${MOLTCLAW_CI:-0}"
+CI_MODE="${LOCKCLAW_CI:-0}"
 
 # Detect if running inside a container (Docker / LXC / podman)
 CONTAINER_MODE=0
@@ -166,7 +166,7 @@ if [ -f /etc/ssh/sshd_config ] || [ -d /etc/ssh/sshd_config.d ]; then
   rm -f "$SSHD_COMBINED"
   pass "SSH hardening checks (auth + ciphers)"
 elif [ "$CI_MODE" = "1" ]; then
-  SSH_OVERLAY="$ROOT_DIR/overlays/etc/security/sshd_config.d/10-moltclaw-hardening.conf"
+  SSH_OVERLAY="$ROOT_DIR/overlays/etc/security/sshd_config.d/10-lockclaw-hardening.conf"
   grep -Eqi '^\s*PermitRootLogin\s+no' "$SSH_OVERLAY" || fail "overlay ssh posture missing PermitRootLogin no"
   grep -Eqi '^\s*PasswordAuthentication\s+no' "$SSH_OVERLAY" || fail "overlay ssh posture missing PasswordAuthentication no"
   grep -Eqi '^\s*Ciphers\s' "$SSH_OVERLAY" || fail "overlay ssh posture missing Ciphers restriction"

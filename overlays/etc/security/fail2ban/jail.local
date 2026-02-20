@@ -1,4 +1,4 @@
-# MoltClaw Linux fail2ban SSH jail
+# LockClaw fail2ban SSH jail
 # Protects SSH against brute-force attacks
 # Works alongside nftables rate-limiting as defense-in-depth
 

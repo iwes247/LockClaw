@@ -1,20 +1,20 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# MoltClawLinux container entrypoint
+# LockClaw container entrypoint
 # Starts hardened services in the correct order
 
-log() { echo "[moltclaw] $*"; }
+log() { echo "[lockclaw] $*"; }
 
 inject_ssh_key() {
     # Allow operator to inject SSH public key via environment variable
     if [ -n "${SSH_PUBLIC_KEY:-}" ]; then
-        mkdir -p /home/moltclaw/.ssh
-        echo "$SSH_PUBLIC_KEY" > /home/moltclaw/.ssh/authorized_keys
-        chmod 600 /home/moltclaw/.ssh/authorized_keys
-        chown -R moltclaw:moltclaw /home/moltclaw/.ssh
-        log "SSH public key injected for user 'moltclaw'"
-    elif [ -f /home/moltclaw/.ssh/authorized_keys ]; then
+        mkdir -p /home/lockclaw/.ssh
+        echo "$SSH_PUBLIC_KEY" > /home/lockclaw/.ssh/authorized_keys
+        chmod 600 /home/lockclaw/.ssh/authorized_keys
+        chown -R lockclaw:lockclaw /home/lockclaw/.ssh
+        log "SSH public key injected for user 'lockclaw'"
+    elif [ -f /home/lockclaw/.ssh/authorized_keys ]; then
         log "SSH authorized_keys found (mounted or pre-existing)"
     else
         log "WARN: No SSH key configured. Set SSH_PUBLIC_KEY env var or mount authorized_keys."
@@ -23,7 +23,7 @@ inject_ssh_key() {
 }
 
 start_services() {
-    log "Starting MoltClawLinux services..."
+    log "Starting LockClaw services..."
 
     # ── Inject SSH key ──
     inject_ssh_key
@@ -82,9 +82,9 @@ start_services() {
 
     # ── OpenClaw gateway ──
     if command -v openclaw >/dev/null 2>&1; then
-        # Start gateway in background as the moltclaw user
-        export HOME=/home/moltclaw
-        su moltclaw -c 'openclaw gateway --port 18789 &' 2>/dev/null
+        # Start gateway in background as the lockclaw user
+        export HOME=/home/lockclaw
+        su lockclaw -c 'openclaw gateway --port 18789 &' 2>/dev/null
         # Give it a moment to bind
         sleep 2
         if ss -tlnH 2>/dev/null | grep -q ':18789'; then
@@ -96,16 +96,16 @@ start_services() {
 
     log ""
     log "╔══════════════════════════════════════════════════════════╗"
-    log "║  MoltClawLinux ready                                    ║"
+    log "║  LockClaw ready                                    ║"
     log "║                                                         ║"
-    log "║  Admin user:  moltclaw (key-auth only)                  ║"
+    log "║  Admin user:  lockclaw (key-auth only)                  ║"
     log "║  SSH:         port 22 (rate-limited, modern ciphers)    ║"
     log "║  Firewall:    deny-by-default (nftables)                ║"
     log "║  Gateway:     ws://127.0.0.1:18789 (loopback only)     ║"
     log "║  Memory:      claude-mem (persistent across sessions)   ║"
     log "║                                                         ║"
     log "║  Configure:   openclaw onboard                          ║"
-    log "║  Validate:    /opt/moltclaw/scripts/test-smoke.sh      ║"
+    log "║  Validate:    /opt/lockclaw/scripts/test-smoke.sh      ║"
     log "╚══════════════════════════════════════════════════════════╝"
     log ""
 }
@@ -114,12 +114,12 @@ case "${1:-start}" in
     start)
         start_services
         # Keep container running
-        log "MoltClawLinux ready. PID 1 holding."
+        log "LockClaw ready. PID 1 holding."
         exec tail -f /dev/null
         ;;
     test)
         start_services
-        exec /opt/moltclaw/scripts/test-smoke.sh
+        exec /opt/lockclaw/scripts/test-smoke.sh
         ;;
     shell)
         start_services

@@ -1,4 +1,4 @@
-# MoltClaw Linux security package set
+# LockClaw security package set
 # These are Debian apt package names (bookworm)
 openssh-server
 auditd

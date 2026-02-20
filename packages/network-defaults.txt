@@ -1,4 +1,4 @@
-# MoltClaw Linux networking package set
+# LockClaw networking package set
 # These are Debian apt package names (bookworm)
 iproute2
 ethtool
