@@ -114,8 +114,7 @@ RUN mkdir -p /home/moltclaw/.openclaw/workspace/skills && \
 
 # ── Pre-install claude-mem plugin ────────────────────────────
 # Persistent memory across sessions — the killer feature for self-hosted AI
-RUN cd /home/moltclaw && \
-    su moltclaw -c 'npm install -g claude-mem@latest' && \
+RUN npm install -g claude-mem@latest && \
     npm cache clean --force
 
 # ── Copy MoltClawLinux repo tooling into the image ───────────
