@@ -1,64 +1,32 @@
 # LockClaw Core — Active Spec
 
-> **Phone → GitHub → VS Code bridge**
->
-> Edit this file from your phone (via GPT or GitHub mobile), push to `main`,
-> then run `vibe-sync` in VS Code. Copilot reads this and executes your intent.
-
----
-
-## How to use this file
-
-1. **On your phone (GPT):** Describe what you want built/changed. Have GPT write
-   the spec into this file format. Commit and push to `main` from GitHub mobile.
-2. **In VS Code:** Run `vibe-sync` (alias or script). It pulls latest and prints
-   this file so Copilot has full context.
-3. **Tell Copilot:** "Read the active spec and do what it says."
-
----
-
-## Identity
-
-- **GitHub user:** `iwes247`
-- **Git config:**
-  ```
-  user.name  = iwes247
-  user.email = iwes247@users.noreply.github.com
-  ```
-- **Never push as your work user.** Verify: `git config user.name` → `iwes247`
-
----
+> **This file is the phone-to-VSCode bridge.**
+> Edit from your phone (via GPT) → push → pull in VS Code → Copilot reads and executes.
 
 ## Project summary
 
-Shared policy definitions, audit scripts, and port allowlists consumed by
-lockclaw-baseline and lockclaw-appliance. Not standalone — vendored or
-submoduled into each consumer.
+lockclaw-core contains shared policy definitions, audit scripts, and port
+allowlists consumed by lockclaw-baseline and lockclaw-appliance. It is
+vendored into each consuming repo at `lockclaw-core/`.
 
-### Contents
+## Contents
 
-| Path | Purpose |
-|------|---------|
-| `audit/audit.sh` | Validate policy files exist with correct values |
-| `audit/port-check.sh` | Verify no unexpected ports listening (hard-fail) |
-| `policies/ports/` | Per-profile port allowlists (JSON) |
-| `policies/ssh-requirements.txt` | Required SSH posture values |
-| `policies/sysctl-requirements.txt` | Required sysctl values (appliance only) |
-| `scanner/security-scan.sh` | AIDE + rkhunter + Lynis wrapper (appliance) |
+```
+audit/audit.sh         ← policy file validation
+audit/port-check.sh    ← allowlist-driven port audit (hard-fail)
+policies/ports/        ← per-profile port allowlists (JSON)
+policies/ssh-*         ← required SSH posture values
+policies/sysctl-*      ← required sysctl values (appliance only)
+scanner/security-scan.sh ← AIDE + rkhunter + Lynis wrapper
+docs/                  ← threat model template
+```
 
-### Related repos
+## Current Task
 
-- [lockclaw-appliance](https://github.com/iwes247/lockclaw-appliance) — OS-level hardening
-- [lockclaw-baseline](https://github.com/iwes247/lockclaw-baseline) — Container deployment
+[READY FOR NEXT VIBE]
 
----
+## History
 
-## Current task
-
-<!-- 
-  PHONE USERS: Replace everything below this line with your task.
-  Be specific — what to build, change, fix, or research.
-  Copilot will read this and execute.
--->
-
-_No active task. Edit this section from your phone and push to start._
+HISTORY_START
+> ✅ FINISHED: 20260221 — Repo clarity pass: added Start Here decision tree, ASCII architecture diagram, Success criteria, Baseline NOT host hardening warning, Core not standalone warning, Stability Contract, Versioning and Compatibility across all 3 repos.
+HISTORY_END

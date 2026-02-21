@@ -1,25 +1,17 @@
-# Build artifacts
 *.stub
 .upstream/
 image-builder/output/
-node_modules/
-__pycache__/
-dist/
-build/
-*.so
-
-# Credentials / keys — never commit
 .env
 .env.*
 *.pem
 *.key
 id_rsa*
 id_ed25519*
-
-# Sensitive local config
-image-builder/config/flavor.env
-
-# Docker volumes / local runtime data
+__pycache__/
+node_modules/
+dist/
+build/
+*.so
 volumes/
 *.log
 /tmp/

@@ -11,6 +11,7 @@ note() { echo "NOTE: $*"; }
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+export ROOT_DIR
 
 # Detect container mode
 CONTAINER_MODE=0

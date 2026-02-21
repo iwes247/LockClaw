@@ -2,6 +2,44 @@
 
 Secure-by-default Docker deployment baseline for self-hosting AI runtimes.
 
+> **⚠️ Baseline is NOT host hardening.**
+> It assumes your host is already reasonably secured (firewall, SSH, kernel).
+> For OS-level hardening, see [lockclaw-appliance](https://github.com/iwes247/lockclaw-appliance).
+> No ports are published by default.
+
+## Start Here (Pick One)
+
+| I want to… | Use |
+|------------|-----|
+| Run AI runtimes in Docker with sane security defaults | **lockclaw-baseline** *(you are here)* |
+| Harden a VM or bare-metal host for AI workloads | [lockclaw-appliance](https://github.com/iwes247/lockclaw-appliance) |
+| Understand the shared audit/policy layer | [lockclaw-core](https://github.com/iwes247/lockclaw-core) *(vendored — most users don't clone directly)* |
+
+## How the repos fit together
+
+```
+┌───────────────────┐     ┌────────────────────┐
+│ lockclaw-baseline │     │ lockclaw-appliance  │
+│  (Docker / OCI)   │     │ (VM / bare metal)   │
+└────────┬──────────┘     └────────┬───────────┘
+         │                         │
+         └───────────┬─────────────┘
+                     │ vendored at lockclaw-core/
+              ┌──────▼──────┐
+              │ lockclaw-core│
+              │  (policies,  │
+              │  audit, scan)│
+              └──────────────┘
+```
+
+## Success looks like
+
+- Every listening port appears in the allowlist — or the build fails.
+- SSH (when enabled) accepts only key-based auth with modern ciphers.
+- No runtime process runs as root.
+- Smoke tests exit 0 on a clean build with zero manual steps.
+- A newcomer can identify which repo to use in under 15 seconds.
+
 ## Who it's for
 
 Developers and homelabbers who want to run OpenClaw, Ollama, or other AI runtimes in containers with sane security defaults — without manual hardening.
@@ -131,28 +169,19 @@ docker exec lockclaw /opt/lockclaw/scripts/test-smoke.sh
 docker exec lockclaw ss -tlnp
 ```
 
-## Contributing — vibe-sync workflow
-
-This project uses a **phone-to-VS-Code bridge** for vibe coding:
-
-1. **On your phone (GPT/GitHub mobile):** Edit `.github/prompts/active-spec.md` with your task. Push to `main`.
-2. **In VS Code terminal:** Run `vibe-sync` to pull and display the spec.
-3. **Tell Copilot:** "Read the active spec and do what it says."
-
-```bash
-alias vibe-sync='git pull origin main && cat .github/prompts/active-spec.md'
-```
-
-**Git identity:** Always push as `iwes247`, never your work user.
-```bash
-git config user.name "iwes247"
-git config user.email "iwes247@users.noreply.github.com"
-```
-
 ## Related projects
 
 - **[lockclaw-appliance](https://github.com/iwes247/lockclaw-appliance)** — Full OS-level hardening for VM/bare-metal (nftables, auditd, fail2ban, AIDE, rkhunter, Lynis)
 - **[lockclaw-core](https://github.com/iwes247/lockclaw-core)** — Shared audit scripts and port allowlists
+
+## Contributing — vibe-sync workflow
+
+This project uses a phone-to-VSCode bridge for development:
+
+1. **From your phone** — Edit `.github/prompts/active-spec.md` via GPT, commit and push.
+2. **At your workstation** — Run `lets-go` (PowerShell) or `./scripts/vibe-sync.sh` to pull the spec.
+3. **Copilot executes** — VS Code Copilot reads the active spec and implements the task.
+4. **Sync back** — Run `sync-vibe` to archive the completed task and push state back for your phone.
 
 ## License
 

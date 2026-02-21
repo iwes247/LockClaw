@@ -1,76 +1,46 @@
-# LockClaw Baseline — Active Spec
+﻿# LockClaw Baseline — Active Spec
 
-> **Phone → GitHub → VS Code bridge**
->
-> Edit this file from your phone (via GPT or GitHub mobile), push to `main`,
-> then run `vibe-sync` in VS Code. Copilot reads this and executes your intent.
-
----
-
-## How to use this file
-
-1. **On your phone (GPT):** Describe what you want built/changed. Have GPT write
-   the spec into this file format. Commit and push to `main` from GitHub mobile.
-2. **In VS Code:** Run `vibe-sync` (alias or script). It pulls latest and prints
-   this file so Copilot has full context.
-3. **Tell Copilot:** "Read the active spec and do what it says."
-
----
-
-## Identity
-
-- **GitHub user:** `iwes247`
-- **Git config:**
-  ```
-  user.name  = iwes247
-  user.email = iwes247@users.noreply.github.com
-  ```
-- **Never push as your work user.** Verify: `git config user.name` → `iwes247`
-
----
+> **This file is the phone-to-VSCode bridge.**
+> Edit from your phone (via GPT) → push → pull in VS Code → Copilot reads and executes.
 
 ## Project summary
 
-Secure-by-default Docker/Compose deployment baseline for AI runtimes.
-No `--cap-add NET_ADMIN` required. Container-level only — no OS hardening.
+LockClaw Baseline is a secure-by-default Docker deployment baseline for
+self-hosting AI runtimes. No OS-level hardening (that's lockclaw-appliance).
+No `--cap-add NET_ADMIN` required. Services bind to loopback only. SSH is
+opt-in. Port audit hard-fails on unexpected listeners.
 
-### Architecture
+## Architecture
 
 ```
-lockclaw-core/            ← shared audit scripts + port allowlists (vendored)
-packages/                 ← container package manifest (baseline.txt)
-scripts/                  ← smoke test tooling
-docs/                     ← threat model
+scripts/        ← smoke test tooling
+lockclaw-core/  ← shared audit scripts and port allowlists (vendored)
+packages/       ← baseline package manifest
+docs/           ← threat model
 ```
 
-### Security defaults
+## Security model
 
-| Default | Detail |
-|---------|--------|
-| Loopback-only | AI runtimes bind to `127.0.0.1` — never `0.0.0.0` |
-| SSH opt-in | Disabled by default; `LOCKCLAW_ENABLE_SSH=1` to enable |
-| Non-root | `lockclaw` user for all processes |
-| Port audit | Smoke tests hard-fail on unexpected listeners |
+- All services bind to 127.0.0.1 — never directly exposed.
+- SSH disabled by default; opt-in via LOCKCLAW_ENABLE_SSH=1.
+- SSH (when enabled): key-only, no root, modern ciphers.
+- Non-root user (`lockclaw`) for all runtime processes.
+- Port audit: smoke tests hard-fail on unexpected non-loopback listeners.
+- No nftables, auditd, or fail2ban — those are host/VM responsibilities.
 
-### Image variants
 
-- `lockclaw-baseline:openclaw` — OpenClaw gateway + claude-mem
-- `lockclaw-baseline:ollama` — Ollama local LLM engine
-- `lockclaw-baseline:base` — Bring your own runtime
+## Current Task
 
-### Related repos
+TASK_START
+[READY FOR NEXT VIBE]
+TASK_END
 
-- [lockclaw-appliance](https://github.com/iwes247/lockclaw-appliance) — OS-level hardening (VM/bare-metal)
-- [lockclaw-core](https://github.com/iwes247/lockclaw-core) — Shared audit + port allowlists
+## History
 
----
-
-## Current task
-
-<!-- 
-  PHONE USERS: Replace everything below this line with your task.
-  Be specific — what to build, change, fix, or research.
-  Copilot will read this and execute.
--->
-
-_No active task. Edit this section from your phone and push to start._
+HISTORY_START
+> ✅ FINISHED: 20260221 — Implemented pre-flight.sh security gate
+> Created scripts/pre-flight.sh: ss -ltn discovery, port extraction handling *, 0.0.0.0, [::], [::]
+> Allowlist: 22, 8080. Fail-closed EXIT 1 on violation.
+> iproute2 already in packages/baseline.txt. chmod +x covered by Dockerfile glob.
+> Wired run_preflight() in docker-entrypoint.sh before start_ssh/start_runtime.
+HISTORY_END
