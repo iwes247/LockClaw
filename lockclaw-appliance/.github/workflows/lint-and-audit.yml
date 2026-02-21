@@ -1,0 +1,121 @@
+name: lint-and-audit
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: ShellCheck
+        run: |
+          find scripts/ lockclaw-core/ image-builder/scripts/ \
+            -name '*.sh' \
+            -exec shellcheck --severity=warning {} +
+
+  audit:
+    needs: lint
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Make scripts executable
+        run: |
+          chmod +x scripts/*.sh
+          chmod +x lockclaw-core/audit/*.sh
+          chmod +x lockclaw-core/scanner/*.sh
+
+      - name: Audit overlays
+        run: ./scripts/audit.sh
+
+      - name: Validate overlay file permissions are documented
+        run: |
+          # Spot-check that critical overlay files exist
+          for f in \
+            overlays/etc/security/sysctl.conf \
+            overlays/etc/security/sshd_config.d/10-lockclaw-hardening.conf \
+            overlays/etc/network/nftables.conf \
+            overlays/etc/security/fail2ban/jail.local \
+            overlays/etc/security/aide/aide.conf; do
+            [ -f "$f" ] || { echo "FAIL: Missing $f"; exit 1; }
+            echo "PASS: $f exists"
+          done
+
+      - name: Validate image-builder stubs
+        run: |
+          [ -f image-builder/Makefile ] || { echo "FAIL: Makefile missing"; exit 1; }
+          for stub in \
+            image-builder/scripts/build-iso-stub.sh \
+            image-builder/scripts/build-qcow2-stub.sh \
+            image-builder/scripts/build-raw-stub.sh \
+            image-builder/scripts/validate-inputs.sh; do
+            [ -f "$stub" ] || { echo "FAIL: Missing $stub"; exit 1; }
+            echo "PASS: $stub exists"
+          done
+
+  build-test:
+    needs: audit
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build appliance test image
+        run: docker build -t lockclaw-appliance:test .
+
+      - name: Start container (with capabilities)
+        run: |
+          docker run -d \
+            --name lockclaw-appliance \
+            --cap-add NET_ADMIN \
+            --cap-add AUDIT_WRITE \
+            lockclaw-appliance:test
+
+      - name: Wait for services
+        run: sleep 5
+
+      - name: Run smoke tests
+        run: |
+          docker exec lockclaw-appliance \
+            /opt/lockclaw/scripts/test-smoke.sh
+
+      - name: Verify firewall loaded
+        run: |
+          docker exec lockclaw-appliance \
+            nft list ruleset | grep -q 'policy drop'
+
+      - name: Verify SSH hardening
+        run: |
+          docker exec lockclaw-appliance \
+            sshd -T | grep -qi 'permitrootlogin no'
+
+      - name: Port exposure check
+        run: |
+          echo "=== Port Exposure Check ==="
+          docker exec lockclaw-appliance ss -tlnp
+
+          UNEXPECTED=$(docker exec lockclaw-appliance \
+            ss -tlnH 2>/dev/null | awk '{print $4}' \
+            | grep -v '127\.0\.0\.1' \
+            | grep -v '\[::1\]' \
+            | grep -v ':22$' \
+            || true)
+
+          if [ -n "$UNEXPECTED" ]; then
+            echo "FAIL: Unexpected non-loopback listeners: $UNEXPECTED"
+            exit 1
+          fi
+          echo "PASS: Only SSH on non-loopback"
+
+      - name: Cleanup
+        if: always()
+        run: docker rm -f lockclaw-appliance 2>/dev/null || true

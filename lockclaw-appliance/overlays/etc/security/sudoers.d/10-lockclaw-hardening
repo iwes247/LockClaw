@@ -1,0 +1,5 @@
+# LockClaw sudo hardening
+Defaults use_pty
+Defaults logfile="/var/log/sudo.log"
+Defaults log_input,log_output
+Defaults timestamp_timeout=5

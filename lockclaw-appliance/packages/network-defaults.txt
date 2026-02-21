@@ -1,0 +1,12 @@
+# LockClaw networking package set
+# These are Debian apt package names (bookworm)
+iproute2
+ethtool
+curl
+ca-certificates
+bind9-dnsutils
+iputils-ping
+procps
+# network-manager — heavy; only needed on bare-metal/VM with multiple interfaces
+# systemd-resolved — included in systemd base
+# systemd-timesyncd — included in systemd base

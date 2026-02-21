@@ -1,0 +1,14 @@
+# LockClaw security package set
+# These are Debian apt package names (bookworm)
+openssh-server
+auditd
+sudo
+rsyslog
+nftables
+fail2ban
+aide
+lynis
+rkhunter
+unattended-upgrades
+apt-listchanges
+# apparmor — requires host kernel support; enable on bare-metal/VM targets

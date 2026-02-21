@@ -1,0 +1,34 @@
+# LockClaw rkhunter configuration overrides
+# Rootkit detection — scans for known rootkits, backdoors, and suspicious files
+#
+# Usage:
+#   rkhunter --check --sk    ← run scan (--sk skips keypress prompts)
+#   rkhunter --update        ← update signature database
+#   rkhunter --propupd       ← update file properties baseline
+#
+# Full scan runs as part of: /opt/lockclaw/scripts/security-scan.sh
+
+# Allow script replacements during package updates
+SCRIPTWHITELIST=/usr/bin/lwp-request
+SCRIPTWHITELIST=/usr/bin/ldd
+
+# Don't flag these known-good items in containers
+ALLOWDEVFILE=/dev/shm/auditd_lock
+ALLOWHIDDENDIR=/etc/.java
+ALLOWHIDDENFILE=/etc/.gitignore
+ALLOWHIDDENFILE=/etc/.updated
+
+# Logging
+LOGFILE=/var/log/rkhunter.log
+USE_SYSLOG=authpriv.warning
+
+# Update mirrors
+UPDATE_MIRRORS=1
+MIRRORS_MODE=0
+WEB_CMD=curl -fsSL
+
+# Auto-update properties DB after OS updates
+PKGMGR=DPKG
+
+# Mail alerts (disabled by default — enable if you add an MTA)
+# MAIL-ON-WARNING=root@localhost

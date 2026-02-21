@@ -1,5 +1,22 @@
 # LockClaw
 
+> **This repo has been split into two focused projects.** This repository is archived for historical reference.
+>
+> | New repo | What it is | Link |
+> |----------|-----------|------|
+> | **lockclaw-baseline** | Secure-by-default Docker/Compose deployment for AI runtimes. No `--cap-add NET_ADMIN` required. | [github.com/iwes247/lockclaw-baseline](https://github.com/iwes247/lockclaw-baseline) |
+> | **lockclaw-appliance** | Full OS-level hardened appliance for VMs and bare metal (nftables, auditd, fail2ban, AIDE, rkhunter, Lynis). | [github.com/iwes247/lockclaw-appliance](https://github.com/iwes247/lockclaw-appliance) |
+>
+> Both repos share audit scripts and port allowlists via [lockclaw-core](https://github.com/iwes247/lockclaw-core).
+>
+> **Why the split?** The original repo mixed container deployment defaults with OS-level hardening (nftables, sysctl, auditd) that doesn't belong in a Docker container. The baseline repo is a clean container with loopback-only services and no elevated capabilities. The appliance repo owns all OS-level security policy for VM/bare-metal targets.
+
+---
+
+*The original README is preserved below for reference.*
+
+---
+
 A hardened Linux container for self-hosting AI runtimes. LockClaw enforces a deny-by-default security model and ships production-ready networking defaults out of the box — no manual hardening required after deployment.
 
 Choose your runtime:

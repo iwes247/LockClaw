@@ -1,0 +1,10 @@
+# LockClaw logrotate for sudo audit log
+/var/log/sudo.log {
+    rotate 12
+    monthly
+    compress
+    delaycompress
+    missingok
+    notifempty
+    create 0600 root root
+}

@@ -1,0 +1,28 @@
+# LockClaw fail2ban jails
+# Defense-in-depth alongside nftables rate-limiting
+
+# ── SSH brute-force protection ───────────────────────────────
+[sshd]
+enabled  = true
+port     = ssh
+filter   = sshd
+backend  = systemd
+maxretry = 5
+findtime = 600
+bantime  = 3600
+action   = nftables-multiport[name=sshd, port="ssh", protocol=tcp]
+
+# ── Port scan detection ──────────────────────────────────────
+# Watches nftables "nft-drop:" log entries. An IP that triggers 10+
+# dropped packets within 60 seconds is likely scanning and gets banned
+# for 24 hours on all ports.
+[portscan]
+enabled  = true
+filter   = portscan
+logpath  = /var/log/syslog
+          /var/log/kern.log
+          /var/log/messages
+maxretry = 10
+findtime = 60
+bantime  = 86400
+action   = nftables-allports[name=portscan]
