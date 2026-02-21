@@ -38,6 +38,24 @@ This is **not** a standalone project. It is intended to be vendored (`lockclaw-c
 
 Tag releases as `core-vX.Y.Z`. Consuming repos should pin to a specific version and update deliberately.
 
+## Contributing — vibe-sync workflow
+
+This project uses a **phone-to-VS-Code bridge** for vibe coding:
+
+1. **On your phone (GPT/GitHub mobile):** Edit `.github/prompts/active-spec.md` with your task. Push to `main`.
+2. **In VS Code terminal:** Run `vibe-sync` to pull and display the spec.
+3. **Tell Copilot:** "Read the active spec and do what it says."
+
+```bash
+alias vibe-sync='git pull origin main && cat .github/prompts/active-spec.md'
+```
+
+**Git identity:** Always push as `iwes247`, never your work user.
+```bash
+git config user.name "iwes247"
+git config user.email "iwes247@users.noreply.github.com"
+```
+
 ## License
 
 MIT — see [LICENSE](LICENSE).

@@ -2,6 +2,11 @@
 .upstream/
 image-builder/output/
 *.stub
+node_modules/
+__pycache__/
+dist/
+build/
+*.so
 
 # Sensitive local config (flavor.env is user-specific)
 image-builder/config/flavor.env
@@ -13,6 +18,11 @@ id_rsa*
 id_ed25519*
 .env
 .env.*
+
+# Docker volumes / local runtime data
+volumes/
+*.log
+/tmp/
 
 # OS / editor
 .DS_Store

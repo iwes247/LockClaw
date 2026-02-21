@@ -135,6 +135,28 @@ docs/                     ← threat model, security posture, networking posture
 | [Security posture](docs/security-posture.md) | All security overlays and policy |
 | [Networking posture](docs/networking-posture.md) | Network overlays and exposure surface |
 
+## Contributing — vibe-sync workflow
+
+This project uses a **phone-to-VS-Code bridge** for vibe coding:
+
+1. **On your phone (GPT/GitHub mobile):** Edit `.github/prompts/active-spec.md` with your task. Push to `main`.
+2. **In VS Code terminal:** Run `vibe-sync` to pull and display the spec.
+3. **Tell Copilot:** "Read the active spec and do what it says."
+
+```bash
+# Set up the alias (add to your shell profile for persistence)
+alias vibe-sync='git pull origin main && cat .github/prompts/active-spec.md'
+
+# Or source the full script (includes identity check)
+source scripts/vibe-sync.sh
+```
+
+**Git identity:** Always push as `iwes247`, never your work user.
+```bash
+git config user.name "iwes247"
+git config user.email "iwes247@users.noreply.github.com"
+```
+
 ## Related projects
 
 - **[lockclaw-baseline](https://github.com/iwes247/lockclaw-baseline)** — Container deployment baseline (Docker/Compose, no OS-level hardening)

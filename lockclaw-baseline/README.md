@@ -27,19 +27,20 @@ Developers and homelabbers who want to run OpenClaw, Ollama, or other AI runtime
 
 | Image | Runtime | Pull |
 |-------|---------|------|
-| `lockclaw:openclaw` | [OpenClaw](https://github.com/openclaw/openclaw) gateway + [claude-mem](https://github.com/thedotmack/claude-mem) | `docker pull ghcr.io/iwes247/lockclaw:openclaw` |
-| `lockclaw:ollama` | [Ollama](https://ollama.com) local LLM engine | `docker pull ghcr.io/iwes247/lockclaw:ollama` |
-| `lockclaw:base` | None (bring your own) | `docker pull ghcr.io/iwes247/lockclaw:base` |
-| `lockclaw:latest` | Same as `openclaw` | `docker pull ghcr.io/iwes247/lockclaw:latest` |
+| `lockclaw-baseline:openclaw` | [OpenClaw](https://github.com/openclaw/openclaw) gateway + [claude-mem](https://github.com/thedotmack/claude-mem) | `docker pull ghcr.io/iwes247/lockclaw-baseline:openclaw` |
+| `lockclaw-baseline:ollama` | [Ollama](https://ollama.com) local LLM engine | `docker pull ghcr.io/iwes247/lockclaw-baseline:ollama` |
+| `lockclaw-baseline:base` | None (bring your own) | `docker pull ghcr.io/iwes247/lockclaw-baseline:base` |
+| `lockclaw-baseline:latest` | Same as `openclaw` | `docker pull ghcr.io/iwes247/lockclaw-baseline:latest` |
 
 ## Quickstart
 
 ### Run Ollama (simplest)
 
 ```bash
+docker pull ghcr.io/iwes247/lockclaw-baseline:ollama
 docker run -d --name lockclaw \
   -v lockclaw-models:/home/lockclaw/.ollama \
-  lockclaw:ollama
+  ghcr.io/iwes247/lockclaw-baseline:ollama
 
 # Interact via docker exec
 docker exec -it lockclaw bash
@@ -52,13 +53,14 @@ No ports are published. No capabilities required. The Ollama API is on `127.0.0.
 ### Run OpenClaw with SSH access
 
 ```bash
+docker pull ghcr.io/iwes247/lockclaw-baseline:openclaw
 docker run -d --name lockclaw \
   -e LOCKCLAW_ENABLE_SSH=1 \
   -e SSH_PUBLIC_KEY="$(cat ~/.ssh/id_ed25519.pub)" \
   -e ANTHROPIC_API_KEY="sk-ant-..." \
   -v lockclaw-openclaw:/home/lockclaw/.openclaw \
   -p 2222:22 \
-  lockclaw:openclaw
+  ghcr.io/iwes247/lockclaw-baseline:openclaw
 
 # SSH in and tunnel the gateway
 ssh -p 2222 -L 18789:127.0.0.1:18789 lockclaw@localhost
@@ -67,9 +69,12 @@ ssh -p 2222 -L 18789:127.0.0.1:18789 lockclaw@localhost
 ### Docker Compose
 
 ```bash
+# Run without SSH (default — no ports exposed)
 docker compose up -d ollama
-# or
-docker compose up -d openclaw
+
+# Run with SSH access (opt-in via profile)
+SSH_PUBLIC_KEY="$(cat ~/.ssh/id_ed25519.pub)" \
+  docker compose --profile ssh up -d openclaw-ssh
 ```
 
 See [docker-compose.yml](docker-compose.yml) for full configuration.
@@ -121,8 +126,27 @@ See [docs/threat-model.md](docs/threat-model.md) for details.
 # Run smoke tests inside the container
 docker exec lockclaw /opt/lockclaw/scripts/test-smoke.sh
 
+# Expected output: all PASS, no unexpected ports
 # Check what's listening
 docker exec lockclaw ss -tlnp
+```
+
+## Contributing — vibe-sync workflow
+
+This project uses a **phone-to-VS-Code bridge** for vibe coding:
+
+1. **On your phone (GPT/GitHub mobile):** Edit `.github/prompts/active-spec.md` with your task. Push to `main`.
+2. **In VS Code terminal:** Run `vibe-sync` to pull and display the spec.
+3. **Tell Copilot:** "Read the active spec and do what it says."
+
+```bash
+alias vibe-sync='git pull origin main && cat .github/prompts/active-spec.md'
+```
+
+**Git identity:** Always push as `iwes247`, never your work user.
+```bash
+git config user.name "iwes247"
+git config user.email "iwes247@users.noreply.github.com"
 ```
 
 ## Related projects
