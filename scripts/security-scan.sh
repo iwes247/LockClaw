@@ -65,7 +65,7 @@ run_rkhunter() {
     fi
 
     # --sk = skip keypress, --nocolors = clean output
-    RK_OUT=$(rkhunter --check --sk --nocolors 2>&1) && RK_RC=$? || RK_RC=$?
+    RK_OUT=$(rkhunter --check --sk --nocolors 2>&1 || true)
 
     # Parse rkhunter results
     WARNINGS=$(echo "$RK_OUT" | grep -c '\[ Warning \]' || true)
@@ -94,7 +94,7 @@ run_lynis() {
     fi
 
     # --quick = non-interactive, --no-colors for clean output
-    LYNIS_OUT=$(lynis audit system --quick --no-colors 2>&1) && LYNIS_RC=$? || LYNIS_RC=$?
+    LYNIS_OUT=$(lynis audit system --quick --no-colors 2>&1 || true)
 
     # Extract hardening index
     SCORE=$(echo "$LYNIS_OUT" | grep -oP 'Hardening index\s*:\s*\K[0-9]+' || echo "unknown")
